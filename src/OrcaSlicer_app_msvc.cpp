@@ -224,6 +224,11 @@ int wmain(int argc, wchar_t **argv)
 
     std::vector<wchar_t*> argv_extended;
     argv_extended.emplace_back(argv[0]);
+#ifdef _WIN32
+    AllocConsole();
+    SetConsoleOutputCP(CP_UTF8);
+    freopen("CONOUT$", "w", stdout);
+#endif
 
 #ifdef SLIC3R_WRAPPER_GCODEVIEWER
     wchar_t gcodeviewer_param[] = L"--gcodeviewer";

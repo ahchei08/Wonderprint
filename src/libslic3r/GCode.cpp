@@ -2383,6 +2383,39 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
     }
 
     file.write_format("; HEADER_BLOCK_END\n\n");
+    std::vector<float> flush_matrix(cast<float>(m_config.flush_volumes_matrix.values));
+    float              flush_multiplier = 1.0;
+    //m_config.flush_multiplier.getFloat();
+    const unsigned int number_of_extruders = (unsigned int) (sqrt(flush_matrix.size()) + EPSILON);
+    // ConfigOptionStrings filament_colour;
+    // string filament_colour_list = "; filament_colour: ";
+    std::vector<std::string> filament_colour_list = m_config.filament_colour.values;
+    std::string              str_flush_matrix     = "";
+    std::string              str_filament_colour  = "";
+    //; filament_colour = #0000FF;#00C1AE;#F4E2C1;#ED1C24
+    for (int i = 0; i < flush_matrix.size(); i++) {
+        char buffer[32];
+        // if (std::fabs(std::fmod(flush_matrix[i], 1.0f)) < EPSILON)
+        snprintf(buffer, sizeof(buffer), "%d", int(flush_matrix[i] * flush_multiplier + EPSILON));
+        // else
+        //     snprintf(buffer, sizeof(buffer), "%.2f",flush_matrix[i]);
+        str_flush_matrix += buffer;
+        if (i < 4) {
+            str_filament_colour += filament_colour_list.size() > i ? filament_colour_list[i] : "#FFFFFF";
+            if (i != 3)
+                str_filament_colour += ",";
+        }
+        if (i != flush_matrix.size() - 1)
+            str_flush_matrix += ",";
+    }
+    file.write_format("; WONDER_BLOCK_START\n");
+    file.write_format("; bed_level = false\n");
+    file.write_format("; time_lapse = false\n");
+    file.write("; flush_volumes_matrix_final = " + str_flush_matrix + "\n");
+    // file.write_format("; flush_multiplier = %.2f\n", flush_multiplier);
+    file.write("; filament_colour = " + str_filament_colour + "\n");
+    file.write_format("; WONDER_BLOCK_END\n\n");
+
     }
     
       // BBS: write global config at the beginning of gcode file because printer

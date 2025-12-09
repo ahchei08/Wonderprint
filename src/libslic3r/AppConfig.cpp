@@ -111,7 +111,12 @@ void AppConfig::set_defaults()
         if (get("background_processing").empty())
             set_bool("background_processing", false);
 #endif
-
+        if (get("language").empty()) {
+            set("language", "en");
+        }
+        if (get("TESTMODE").empty()) {
+            set_bool("TESTMODE", false);
+        }
         if (get("drop_project_action").empty())
             set_bool("drop_project_action", true);
 

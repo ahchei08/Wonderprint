@@ -30,6 +30,153 @@
 #include "format.hpp"
 
 namespace fs = boost::filesystem;
+size_t GocdeFileReadInfo(std::string& inputGCodePath, unsigned char* buff, wxString* tmpfilament, wxString PanelName)
+{
+    size_t   len = 0;
+    wxFile   lockfile;
+    wxString lockContent = "";
+    for (int i = 0; i < 50; i++) {
+        if (lockfile.Open(inputGCodePath + "\\lock.txt", wxFile::read)) {
+            wxString fileContent;
+            if (lockfile.ReadAll(&fileContent)) {
+                lockContent = fileContent;
+            }
+            lockfile.Close();
+            break;
+        }
+        wxMilliSleep(10);
+        if (i == 499) {
+            // wxLogError(wxT("Failed to open lock file: %s"), inputGCodePath.c_str());
+            std::cout << "Failed to open lock file: " << inputGCodePath << endl;
+            return 0;
+        }
+    }
+    bool             fileFound = false;
+    vector<wxString> fileList;
+    for (int i = 0; i < 32; i++) {
+        wxString filepath = wxString::Format("%s\\Metadata\\.%s.%d.gcode", inputGCodePath, lockContent, i);
+        // inputGCodePath    = filepath.ToUTF8();
+        wxFile iFile(filepath);
+        if (iFile.Exists(filepath)) {
+            fileFound = true;
+            fileList.push_back(filepath);
+        } else if (fileFound)
+            break;
+    }
+    const size_t READ_SIZE = 32 * 1024; // 32KB
+    if (fileList.empty()) {
+        std::cout << "Failed to find G-code file: " << inputGCodePath << endl;
+        return 0;
+    } else {
+        if (PanelName.Find(" ") != wxNOT_FOUND)
+            PanelName.Replace(" ", "_");
+        wxString PanelName1 = wxString::Format(wxT("EXCLUDE_OBJECT_START NAME=%s"), PanelName);
+
+        cout << "GocdeFileReadInfo PanelName1=" << PanelName1 << endl;
+        for (auto iFile : fileList) {
+            wxFile inputFile;
+            if (!inputFile.Open(iFile)) {
+                // wxLogError(wxT("Failed to open G-code file: %s"), inputGCodePath.c_str());
+                std::cout << "Failed to open G-code file: " << iFile << endl;
+                continue;
+                // return 0;
+            }
+            std::cout << "Found G-code file: " << iFile << endl;
+            char outBuffer[READ_SIZE];
+            if (!inputFile.Read(outBuffer, READ_SIZE - 1)) {
+                inputFile.Close();
+                std::cout << "Read G-code Error: " << iFile << endl;
+                continue;
+            }
+            inputFile.Close();
+            wxString fileContent = wxString::FromUTF8(outBuffer);
+            if (fileList.size() > 1) { // find the right file
+                // fileContent.append(outBuffer, outBuffer+ READ_SIZE);
+                fileContent  = wxString::FromUTF8(outBuffer);
+                int foundPos = fileContent.Find(PanelName1);
+                /*int foundPos1 = fileContent.Find(wxT("EXCLUDE_OBJECT_START NAME="));
+                if (foundPos1 != wxNOT_FOUND) {
+                    wxString curName = fileContent.substr(foundPos1 + 26, 32);
+                    cout << "GocdeFileReadInfo curName0=" << curName << endl;
+                    int foundPos2 = curName.Find('_');
+                    if (foundPos2 != wxNOT_FOUND) {
+                        curName = curName.substr(0, foundPos2);
+                        cout << "GocdeFileReadInfo curName1=" << curName << endl;
+                    }
+                }*/
+                cout << "GocdeFileReadInfo foundPos=" << foundPos << endl;
+                if (foundPos == wxNOT_FOUND) {
+                    continue;
+                }
+            }
+            inputGCodePath        = iFile.ToUTF8();
+            //wxFileOffset fileSize = inputFile.Length();
+            //cout << "GocdeFileReadInfo total file Size=" << fileSize << endl;
+            //if (fileSize > READ_SIZE) {
+            //    wxFileOffset startPos = fileSize - READ_SIZE;
+            //    if (!inputFile.Seek(startPos, wxFromStart)) {
+            //        inputFile.Close();
+            //        std::cout << "File Seek Fail" << endl;
+            //        return 0;
+            //    }
+            //    size_t actualRead = inputFile.Read(outBuffer, READ_SIZE - 1);
+            //    fileContent += wxString::FromUTF8(outBuffer);
+            //    // fileContent.append(outBuffer, READ_SIZE - 1);
+            //    // fileContent.append(outBuffer + READ_SIZE, outBuffer + 2*READ_SIZE-2);
+            //}
+            //inputFile.Close();
+            wxStringTokenizer tokenizer(fileContent, wxT("\n"));
+            wxString          PngBase64 = "";
+            int               in_png    = 2;
+            int               pngPos    = 0;
+            while (tokenizer.HasMoreTokens()) {
+                wxString line = tokenizer.GetNextToken().Trim(true).Trim(false);
+
+                if (in_png == 1) {
+                    if (line.StartsWith(wxT("; thumbnail end"))) {
+                        in_png = 0;
+                    } else {
+                        PngBase64 += line.Mid(2).Trim(true).Trim(false);
+                    }
+                } else if (line.StartsWith(wxT("; thumbnail begin"))) {
+                    PngBase64 = "";
+                    in_png    = 1;
+                } else if (line.StartsWith(wxT("; filament:"))) { //"; filament used [mm]"
+                    wxString filamentInfo = line.Mid(11).Trim(true).Trim(false);
+                    *tmpfilament          = filamentInfo;
+                }
+            }
+            len = wxBase64Decode(buff, 1024 * 24, PngBase64.c_str(), PngBase64.length());
+            std::cout << "GocdeFileReadInfo len=" << len << endl;
+            return len;
+        }
+    }
+    return len;
+}
+
+void ReplaceTrueOrFalse(string path, string key, bool type)
+{
+    // std::fstream file(path, std::ios::in | std::ios::out | std::ios::binary);
+    std::fstream file(path, std::ios::in | std::ios::binary);
+    if (file.is_open()) {
+        cout << "open file ok!\n";
+        char buffer[1024] = {0};
+        file.read(buffer, 1023);
+        // 找到需要修改的行
+        char write_data[6] = "false";
+        if (type)
+            memcpy(write_data, "true ", 5);
+        size_t index = ((string) buffer).find(key);
+        cout << "find:" << index << ", length :" << key.length() << endl;
+        index += key.length();
+        /*if (index < 1000 && index > 10) {
+            file.seekp(index);
+            file.write(write_data, 5);
+        }*/
+        file.close();
+    } else
+        cout << "open file failed\n";
+}
 
 namespace Slic3r {
 namespace GUI {
@@ -109,6 +256,268 @@ void PrintHostSendDialog::init()
 
     txt_filename->SetValue(recent_path);
 
+    #define GCODE_SET_FILAMENT \
+    "{\"script\":\"BOX_MODIFY_LIST KEY=T%d VALUE=\\\"slot%d\\\"\\r\\nSAVE_VARIABLE VARIABLE=box_modify_t%d VALUE=%d\"}"
+#define GCODE_API_URL "http://%s/printer/gcode/script"
+
+    DynamicPrintConfig*  cfg    = &wxGetApp().preset_bundle->project_config;
+    DynamicPrintConfig   cfg1   = wxGetApp().preset_bundle->printers.get_edited_preset().config;
+    ConfigOptionStrings* colors = static_cast<ConfigOptionStrings*>(cfg->option("filament_colour")->clone());
+    /*for (auto& pair : wxGetApp().preset_bundle->filament_ams_list) {
+        int                       slot_index   = pair.first;
+        DynamicPrintConfig& filament_cfg = pair.second;
+        std::map<std::string, std::string> mm_filament  = filament_cfg.validate(true);
+        for (auto& pair1 : mm_filament) {
+            cout << "slot_index:" << slot_index << ",key:" << pair1.first << ",value:" << pair1.second << endl;
+        }
+    }
+    for (const auto& pair : wxGetApp().preset_bundle->m_filament_id_maps) {
+        std::cout << "key:" << pair.first << ",value:" << pair.second << std::endl;
+    }*/
+
+    string gcodepath = app_config->get("app", "last_backup_path");
+    std::replace(gcodepath.begin(), gcodepath.end(), '/', '\\');
+    unsigned char buff[1024 * 24] = {0};
+    wxString      resultFilament  = "";
+
+    cout << "Gcode path:" << gcodepath << endl;
+    cout << "Recent path:" << recent_path.ToUTF8() << endl;
+
+    size_t   underscore_pos       = recent_path.find('_');
+    wxString panel_name_str_first = "";
+    if (underscore_pos != std::string::npos) { // 检查是否找到下划线
+        panel_name_str_first = recent_path.substr(0, underscore_pos);
+        cout << "Panel Name:" << panel_name_str_first << endl;
+        cout << "Panel Name len :" << panel_name_str_first.length() << endl;
+    } else {
+        // 如果没有找到下划线，返回原字符串（可根据需求修改，比如返回空字符串）
+        std::cout << "cant'find _" << std::endl;
+    }
+    // std::string panel_name_str_first = panel_name_str.substr(0, panel_name_str.find('_'));
+
+    /*wxStringTokenizer tokenizer1(recent_path, wxT("_"));
+    wxString PanelName = tokenizer1.GetNextToken().Trim(true).Trim(false);
+    wxString          tmpToken  = wxString::FromUTF8(recent_path.utf8_string());
+    cout << "Recent path token0:" << tmpToken.ToUTF8() << endl;
+    cout << "PanelName:" << recent_path.utf8_string() << endl; */
+    size_t png_size = GocdeFileReadInfo(gcodepath, buff, &resultFilament, panel_name_str_first);
+    if (png_size > 0) {
+        wxMemoryInputStream pngStream(buff, png_size); // 把解码后的PNG数据转为输入流
+        wxImage             image;
+        if (image.LoadFile(pngStream, wxBITMAP_TYPE_PNG)) // 明确指定格式为PNG
+        {
+            wxBitmap gcodebmp(image.Scale(154, 154));
+            // wxBitmap gcodebmp(wxImage(gcodepath  + "plate_1_small.png").Scale(128, 128));
+            if (gcodebmp.IsOk()) {
+                wxBitmap   gcodebmp1(158, 158, 32);
+                wxMemoryDC dc;
+                dc.SelectObject(gcodebmp1);
+                wxPen pen(wxColour(0, 152, 136), 2, wxPENSTYLE_SOLID);
+                dc.SetPen(pen);
+                dc.SetBrush(wxColour(255, 255, 255));
+                wxRect rect = wxRect(1, 1, gcodebmp1.GetWidth() - 1, gcodebmp1.GetHeight() - 1);
+                dc.DrawRectangle(rect);
+                dc.DrawBitmap(gcodebmp, 2, 2, true);
+                dc.SelectObject(wxNullBitmap);
+                this->logo->SetBitmap(gcodebmp1);
+            }
+        }
+    }
+
+    std::vector<std::string> filament_type1 = wxGetApp().preset_bundle->filament_presets;
+    // cout << "filament preset size:" << filament_type1.size() << endl;
+    for (size_t i = 0; i < filament_type1.size() && i < 4; i++) {
+        cout << "filament preset " << i << ":" << filament_type1[i];
+        wxStringTokenizer tokenizer(from_u8(filament_type1[i]), " ");
+        wxString          tmp_n = tokenizer.GetNextToken();
+        filament_type1[i]       = tokenizer.GetNextToken().ToUTF8();
+        cout << ": " << filament_type1[i] << endl;
+    }
+
+    const PrintStatistics& ps = wxGetApp().plater()->get_partplate_list().get_current_fff_print().print_statistics();
+
+    string hostprint = cfg1.opt_string("print_host");
+    // ahchei
+    wxString m_url    = wxString::Format("http://%s/printer/objects/query", hostprint);
+    wxString postData = "{\"objects\": {\"print_stats\": [\"state\"]}}";
+    wxString response;
+    bool     PrinterStandby = HttpJsonClient::SendPostRequest(m_url, postData, "application/json", response, 1);
+    if (PrinterStandby)
+        PrinterStandby = response.Contains("standby");
+    if (PrinterStandby) {
+        label_dir_hint->SetLabelText(_L("Please confirm the model color matches the filament color on the\n"
+                                        "machine. If not, you can still adjust through this page."));
+        label_dir_hint->SetForegroundColour(wxColour(220, 100, 50));
+        wxFont oldFont = label_dir_hint->GetFont();
+        wxFont newFont = oldFont.Scaled(10.0 / oldFont.GetPointSize()); // 直接设置目标大小（20pt
+        label_dir_hint->SetFont(newFont);
+        wxBoxSizer* filament0     = new wxBoxSizer(wxVERTICAL);
+        wxBoxSizer* filamentSizer = new wxBoxSizer(wxHORIZONTAL);
+        // wxBoxSizer* InputSizer    = new wxBoxSizer(wxHORIZONTAL);
+        // wxSize      size1(32, 32);
+        wxSize size1 = wxDefaultSize;
+        // content_sizer->AddSpacer(VERT_SPACING);
+
+        wxArrayString IpChoicevalue;
+        IpChoicevalue.push_back(hostprint);
+        wxChoice*     IpChoice   = new wxChoice(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, IpChoicevalue);
+        wxStaticText* ModelLabel = new wxStaticText(this, wxID_ANY, _L("Model color:"), wxDefaultPosition, IpChoice->GetClientSize(),
+                                                    wxALIGN_CENTER_HORIZONTAL);
+        IpChoice->SetSelection(0);
+        ModelLabel->SetMinSize(wxSize(-1, IpChoice->GetClientSize().y));
+        // ModelLabel->SetBackgroundColour(wxColour(224, 224, 224));
+        filament0->Add(ModelLabel, 0, wxEXPAND);
+        filament0->Add(IpChoice, 0, wxEXPAND);
+        // filament0->Add(new wxStaticText(this, wxID_ANY, _L("Model color:")), 0, wxEXPAND | wxRIGHT | wxLEFT, VERT_SPACING);
+        // filament0->Add(new wxStaticText(this, wxID_ANY, hostprint + ":"), 0, wxEXPAND | wxRIGHT | wxLEFT, VERT_SPACING);
+        filamentSizer->Add(filament0, 0, wxEXPAND | wxTOP | wxBOTTOM, VERT_SPACING);
+        int filament_use_type[4] = {0, 0, 0, 0};
+        if (resultFilament != "") {
+            wxStringTokenizer tokenizer(resultFilament, ",");
+            while (tokenizer.HasMoreTokens()) {
+                wxString line = tokenizer.GetNextToken();
+                cout << "resultFilament line:" << line << endl;
+                long f_num;
+                line.ToLong(&f_num);
+                if (f_num > 0 && f_num < 5) {
+                    filament_use_type[f_num-1] = 1;
+                }
+            }
+ /*           for (int i = 0; i < 4; i++) {
+                if (tokenizer.HasMoreTokens()) {
+                    wxString line = tokenizer.GetNextToken();
+                    double   val;
+                    line.ToDouble(&val);
+                    if (val == 0) {
+                        filament_use_type[i] = 0;
+                    }
+                }
+            }*/
+        } else {
+            for (int i = 0; i < 4; i++) {
+                filament_use_type[i] = 1;
+            }
+        }
+        wxString      numChosen[4] = {"1", "2", "3", "4"};
+        wxStaticText* filament[4];
+        // wxStaticText* text1[4];
+        wxChoice* m_choice[4];
+        // wxMenu*       m_popupMenu[4];
+        for (int i = 0; i < 4; i++) {
+            if (filament_use_type[i] == 0)
+                continue;
+            wxString str_type = "   ";
+            if (i < filament_type1.size()) {
+                if (filament_type1[i].length() > 4) {
+                    size_t dash_pos = filament_type1[i].find('-');
+                    if (dash_pos != std::string::npos)
+                        str_type = from_u8(filament_type1[i].substr(0, dash_pos));
+                    else
+                        str_type = from_u8(filament_type1[i].substr(0, 4));
+                } else
+                    str_type = filament_type1[i];
+            }
+            filament[i] = new wxStaticText(this, wxID_ANY, wxString::Format(" %s ", str_type), wxDefaultPosition, size1,
+                                           wxALIGN_CENTER_HORIZONTAL);
+            m_choice[i] = new wxChoice(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, 4, numChosen);
+            m_choice[i]->SetMaxSize(wxSize(filament[i]->GetClientSize().x, -1));
+            filament[i]->SetMinSize(wxSize(-1, m_choice[i]->GetClientSize().y));
+            m_choice[i]->SetSelection(i);
+            m_choice[i]->Bind(wxEVT_CHOICE, [this, m_choice, i, hostprint, ps](wxCommandEvent& e) {
+                int      sel = m_choice[i]->GetSelection();
+                wxString url     = wxString::Format(GCODE_API_URL, hostprint);
+                wxString postStr = wxString::Format(GCODE_SET_FILAMENT, i, sel, i, sel);
+                wxString response;
+                HttpJsonClient::SendPostRequest(url, postStr, "application/json", response);
+                cout << postStr << endl;
+                cout << wxString::Format("%s:SAVE_VARIABLE:%d<-%d,%s\n", hostprint, i, sel, response);
+            });
+            // m_popupMenu[i] = new wxMenu();
+            //// wxMenuItem* item = new wxMenuItem(m_popupMenu[i], -2, "1", "", wxITEM_NORMAL);
+            // m_popupMenu[i]->Append(wxID_ANY, "1");
+            // m_popupMenu[i]->Append(wxID_ANY, "2");
+            // m_popupMenu[i]->Append(wxID_ANY, "3");
+            // m_popupMenu[i]->Append(wxID_ANY, "4");
+            // m_popupMenu[i]->Bind(wxEVT_MENU, [this, m_popupMenu, text1, i, hostprint](wxCommandEvent& e) {
+            //     wxMenuItem* selectedItem = m_popupMenu[i]->FindItem(e.GetId());
+            //     if (selectedItem != nullptr) {
+            //         wxString selectedText = selectedItem->GetItemLabel();
+            //         long     num;
+            //         selectedText.ToLong(&num);
+            //         text1[i]->SetLabel(selectedText);
+            //         wxString url     = wxString::Format(GCODE_API_URL, hostprint);
+            //         wxString postStr = wxString::Format(GCODE_SET_FILAMENT, i, num - 1, i, num - 1);
+            //         wxString response;
+            //         HttpJsonClient::SendPostRequest(url, postStr, "application/json", response);
+            //         cout << postStr << endl;
+            //         cout << wxString::Format("%s:SAVE_VARIABLE:%d<-%d,%s\n", hostprint, i, num - 1, response);
+            //     }
+            // });
+            // filament[i]->Bind(wxEVT_LEFT_UP, [this, m_popupMenu, filament, i](wxMouseEvent& e) {
+            //     wxPoint pos = this->ScreenToClient(wxGetMousePosition());
+            //     PopupMenu(m_popupMenu[i], pos);
+            // });
+            // text1[i]->Bind(wxEVT_LEFT_UP, [this, m_popupMenu, filament, i](wxMouseEvent& e) {
+            //     wxPoint pos = this->ScreenToClient(wxGetMousePosition());
+            //     PopupMenu(m_popupMenu[i], pos);
+            // });
+            if (colors->values.size() > i) {
+                filament[i]->SetBackgroundColour(wxColour(colors->values[i]));
+                if (wxColour(colors->values[i]).Green() < 64)
+                    filament[i]->SetForegroundColour(*wxWHITE);
+            }
+            // text1[i]->SetBackgroundColour(wxColour("#C0C0C0"));
+            wxBoxSizer* filament1 = new wxBoxSizer(wxVERTICAL);
+            filament1->Add(filament[i], 0, wxEXPAND | wxRIGHT | wxLEFT, VERT_SPACING);
+            // filament1->Add(text1[i], 0, wxALIGN_CENTER_HORIZONTAL | wxRIGHT | wxLEFT, VERT_SPACING);
+            filament1->Add(m_choice[i], 0, wxALIGN_CENTER_HORIZONTAL);
+            filamentSizer->Add(filament1, 0, wxEXPAND | wxTOP | wxBOTTOM, VERT_SPACING);
+        }
+        //"SAVE_VARIABLE VARIABLE=box_modify_t0 VALUE=0"
+        content_sizer->Add(filamentSizer);
+
+        auto      checkbox_sizer1 = new wxBoxSizer(wxHORIZONTAL);
+        CheckBox* checkbox1       = new ::CheckBox(this, wxID_APPLY);
+        checkbox1->SetValue(false);
+
+        checkbox_sizer1->Add(checkbox1, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
+        auto checkbox_text1 = new wxStaticText(this, wxID_ANY, _L("Bed leveling : Off"), wxDefaultPosition, wxDefaultSize, 0);
+        checkbox_sizer1->Add(checkbox_text1, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
+
+        checkbox1->Bind(wxEVT_TOGGLEBUTTON, [this, checkbox_text1, gcodepath](wxCommandEvent& e) {
+            if (e.IsChecked()) {
+                checkbox_text1->SetLabel(_L("Bed leveling : On"));
+            } else {
+                checkbox_text1->SetLabel(_L("Bed leveling : Off"));
+                // checkbox_text1->SetLabel(gcodepath);
+            }
+            cout << gcodepath << endl;
+            ReplaceTrueOrFalse(gcodepath, "; bed_level = ", e.IsChecked());
+            e.Skip();
+        });
+
+        auto      checkbox_sizer2 = new wxBoxSizer(wxHORIZONTAL);
+        CheckBox* checkbox2       = new ::CheckBox(this, wxID_APPLY);
+        checkbox2->SetValue(false);
+
+        checkbox_sizer2->Add(checkbox2, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
+        auto checkbox_text2 = new wxStaticText(this, wxID_ANY, _L("Time lapse : Off"), wxDefaultPosition, wxDefaultSize, 0);
+        checkbox_sizer2->Add(checkbox_text2, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
+        checkbox2->Bind(wxEVT_TOGGLEBUTTON, [this, checkbox_text2, gcodepath, checkbox2](wxCommandEvent& e) {
+            checkbox2->SetValue(e.IsChecked());
+            if (e.IsChecked())
+                checkbox_text2->SetLabel(_L("Time lapse : On"));
+            else
+                checkbox_text2->SetLabel(_L("Time lapse : Off"));
+            ReplaceTrueOrFalse(gcodepath, "; time_lapse = ", e.IsChecked());
+            e.Skip();
+        });
+
+        content_sizer->Add(checkbox_sizer1);
+        content_sizer->Add(checkbox_sizer2);
+        content_sizer->AddSpacer(VERT_SPACING);
+    }
+    /*
     auto checkbox_sizer = new wxBoxSizer(wxHORIZONTAL);
     auto checkbox       = new ::CheckBox(this, wxID_APPLY);
     checkbox->SetValue(m_switch_to_device_tab);
@@ -124,7 +533,7 @@ void PrintHostSendDialog::init()
     checkbox_text->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#323A3D")));
     content_sizer->Add(checkbox_sizer);
     content_sizer->AddSpacer(VERT_SPACING);
-
+    */
     if (size_t extension_start = recent_path.find_last_of('.'); extension_start != std::string::npos)
         m_valid_suffix = recent_path.substr(extension_start);
     // .gcode suffix control
@@ -164,6 +573,10 @@ void PrintHostSendDialog::init()
                 EndDialog(wxID_OK);
             }
         });
+        if (!PrinterStandby) { // ahchei
+            btn_print->Enable(false);
+            btn_print->SetBackgroundColor(wxColour("#DFDFDF"));
+        }
     }
 
     // if (post_actions.has(PrintHostPostUploadAction::StartSimulation)) {

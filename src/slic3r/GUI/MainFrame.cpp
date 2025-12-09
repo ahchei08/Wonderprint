@@ -1053,7 +1053,7 @@ void MainFrame::show_option(bool show)
         }
     }
 }
-
+#define costomAhchei 1
 void MainFrame::init_tabpanel() {
     // wxNB_NOPAGETHEME: Disable Windows Vista theme for the Notebook background. The theme performance is terrible on
     // Windows 10 with multiple high resolution displays connected.
@@ -1076,6 +1076,16 @@ void MainFrame::init_tabpanel() {
 #endif
         //BBS
         wxWindow* panel = m_tabpanel->GetCurrentPage();
+#if costomAhchei
+        if (GUI::get_app_config()->get_bool("TESTMODE")) {
+            if (m_browser_tab != nullptr) {
+                if (panel == m_browser_tab) {
+                    m_browser_tab->OnActivate();
+                } else
+                    m_browser_tab->UnActivate();
+            }
+        }
+#endif
         int sel = m_tabpanel->GetSelection();
         //wxString page_text = m_tabpanel->GetPageText(sel);
         m_last_selected_tab = m_tabpanel->GetSelection();
@@ -1175,7 +1185,12 @@ void MainFrame::init_tabpanel() {
     m_calibration = new CalibrationPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
     m_calibration->SetBackgroundColour(*wxWHITE);
     m_tabpanel->AddPage(m_calibration, _L("Calibration"), std::string("tab_calibration_active"), std::string("tab_calibration_active"), false);
-
+#if costomAhchei
+    if (GUI::get_app_config()->get_bool("TESTMODE")) {
+        m_browser_tab = new BrowserTabPanel(m_tabpanel);
+        m_tabpanel->AddPage(m_browser_tab, _L("Device"), std::string("tab_monitor_active"), std::string("tab_monitor_active"), false);
+    }
+#endif 
     if (m_plater) {
         // load initial config
         auto full_config = wxGetApp().preset_bundle->full_config();
@@ -1259,9 +1274,20 @@ void MainFrame::show_device(bool bBBLPrinter) {
                 m_printer_view->load_url(url, key);
             });
         }
-        m_printer_view->Show(false);
-        m_tabpanel->InsertPage(tpMonitor, m_printer_view, _L("Device"), std::string("tab_monitor_active"),
-                               std::string("tab_monitor_active"));
+        if (!GUI::get_app_config()->get_bool("TESTMODE")) {
+            if (m_printer_view == nullptr) {
+                m_printer_view = new PrinterWebView(m_tabpanel);
+                Bind(EVT_LOAD_PRINTER_URL, [this](LoadPrinterViewEvent& evt) {
+                    wxString url = evt.GetString();
+                    wxString key = evt.GetAPIkey();
+                    // select_tab(MainFrame::tpMonitor);
+                    m_printer_view->load_url(url, key);
+                });
+            }
+            m_printer_view->Show(false);
+            m_tabpanel->InsertPage(tpMonitor, m_printer_view, _L("Device"), std::string("tab_monitor_active"),
+                                   std::string("tab_monitor_active"));
+        }
     }
 }
 
