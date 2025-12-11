@@ -6176,7 +6176,7 @@ void PrintConfigDef::init_fff_params()
     def->label = L("Flush multiplier");
     def->tooltip = L("The actual flushing volumes is equal to the flush multiplier multiplied by the flushing volumes in the table.");
     //def->sidetext = "";
-    def->set_default_value(new ConfigOptionFloats{0.3});
+    def->set_default_value(new ConfigOptionFloats{1.4});//ahchei
 
     // BBS
     def = this->add("prime_volume", coFloat);

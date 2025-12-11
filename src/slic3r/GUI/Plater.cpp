@@ -2378,7 +2378,7 @@ void Sidebar::update_all_preset_comboboxes()
     } else {
         //p->btn_connect_printer->Show();
         p->m_printer_connect->Show();
-        p->m_bpButton_ams_filament->Hide();
+        //p->m_bpButton_ams_filament->Hide();//ahchei
         auto print_btn_type = MainFrame::PrintSelectType::eExportGcode;
         wxString url = cfg.opt_string("print_host_webui").empty() ? cfg.opt_string("print_host") : cfg.opt_string("print_host_webui");
         wxString apikey;
@@ -3299,6 +3299,85 @@ void Sidebar::load_ams_list(MachineObject* obj)
 
 void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
 {
+    int      f_num = 0; //ahchei
+    wxColour m_color[4];
+    std::vector<std::string> new_colors;
+#if 0
+    int      f_num   = GUI::wxGetApp().mainframe->m_browser_tab->m_statusbar->GeFilamentColor(m_color);
+#else
+    PresetBundle*      preset_bundle = wxGetApp().preset_bundle;
+    DynamicPrintConfig cfg           = preset_bundle->printers.get_edited_preset().config;
+    string             hostprint     = cfg.opt_string("print_host");
+    char*              objects       = "{\"objects\": {"
+                                       "\"neopixel T0_RGB\": null, \"neopixel T1_RGB\": null, "
+                                       "\"neopixel T2_RGB\": null, \"neopixel T3_RGB\": null}}";
+    wxString           m_url         = wxString::Format("http://%s:7125/printer/objects/query", hostprint);
+    wxString           Result;
+    HttpJsonClient::SendPostRequest(m_url, objects, "application/json", Result,1);
+    try {
+        nlohmann::json root  = nlohmann::json::parse(Result);
+        nlohmann::json sjson = root["result"]["status"];
+        for (int i = 0; i < 4; i++) {
+            std::string key = wxString::Format("neopixel T%d_RGB", i).ToUTF8();
+            if (sjson.contains(key)) {
+                m_color[i] = wxColour(sjson[key]["color_data"][0][0].get<float>() * 255, sjson[key]["color_data"][0][1].get<float>() * 255,
+                                      sjson[key]["color_data"][0][2].get<float>() * 255);
+                f_num++;
+                //std::cout << "Filament " << i << " color: " << m_color[i].GetAsString(wxC2S_HTML_SYNTAX) << std::endl;
+                new_colors.push_back(m_color[i].GetAsString(wxC2S_HTML_SYNTAX).ToStdString());
+            }
+        }
+    } catch (std::exception const& e) {
+        std::cerr << "Read Json error: " << e.what() << std::endl;
+    }
+#endif
+    int fsize_1 = p->combos_filament.size();
+    if (f_num) {
+        //wxGetApp().preset_bundle->set_num_filaments(f_num, new_colors);
+        for (int i = 0; i < f_num; i++) {
+            if (i < fsize_1) {
+                DynamicPrintConfig*  cfg    = &wxGetApp().preset_bundle->project_config;
+                //
+
+                //ConfigOptionStrings* colors = static_cast<ConfigOptionStrings*>(cfg->option("filament_colour")->clone());
+                //DynamicPrintConfig cfg_new  = *cfg;
+
+
+                ConfigOptionStrings* colors = cfg->option<ConfigOptionStrings>("filament_colour");
+                colors->values[i]           = m_color[i].GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
+
+                //cfg_new.set_key_value("filament_colour", colors);
+                //cfg->apply(cfg_new);
+                //wxGetApp().plater()->update_project_dirty_from_presets();
+                //wxGetApp().preset_bundle->export_selections(*wxGetApp().app_config);
+                //p->combos_filament[i]->clr_picker->SetBackgroundColour(wxColour(colors->values[i]));
+                //p->combos_filament[i]->update();
+                //p->combos_filament[i]->clr_picker->Refresh();
+                //wxGetApp().plater()->on_config_change(cfg_new);
+
+                p->combos_filament[i]->m_clrData.SetColour(m_color[i]);
+                std::vector<std::string> color_i;
+                color_i.push_back(m_color[i].GetAsString(wxC2S_HTML_SYNTAX).ToStdString());
+                p->combos_filament[i]->sync_colour_config(color_i, false);
+
+                wxCommandEvent* evt = new wxCommandEvent(EVT_FILAMENT_COLOR_CHANGED);
+                evt->SetInt(i);
+                wxQueueEvent(wxGetApp().plater(), evt);
+            } else {
+                if (p->combos_filament.size() >= MAXIMUM_EXTRUDER_NUMBER)
+                    return;
+                add_custom_filament(m_color[i]);
+            }
+        }
+        //wxGetApp().preset_bundle->update_multi_material_filament_presets();
+        for (int i = f_num; i < fsize_1; i++) {
+            delete_filament();
+        }
+    } else {
+        auto printer_name = p->plater->get_selected_printer_name_in_combox();
+        p->plater->pop_warning_and_go_to_device_page("", Plater::PrinterWarningType::EMPTY_FILAMENT, _L("EMPTY_FILAMENT"));
+    }
+    return;
     wxBusyCursor cursor;
     // Force load ams list
     auto obj = wxGetApp().getDeviceManager()->get_selected_machine();
@@ -15445,7 +15524,7 @@ void Plater::send_gcode_legacy(int plate_idx, Export3mfProgressFn proFn, bool us
         if (pDlg->ShowModal() != wxID_OK) {
             return;
         }
-
+        
         config->set_bool("open_device_tab_post_upload", pDlg->switch_to_device_tab());
         // PrintHostUpload upload_data;
         upload_job.switch_to_device_tab    = pDlg->switch_to_device_tab();
@@ -15454,6 +15533,11 @@ void Plater::send_gcode_legacy(int plate_idx, Export3mfProgressFn proFn, bool us
         upload_job.upload_data.group       = pDlg->group();
         upload_job.upload_data.storage     = pDlg->storage();
         upload_job.upload_data.extended_info = pDlg->extendedInfo();
+        {
+            // ahchei: add bed level and time lapse info
+            upload_job.upload_data.extended_info["bed_level"]  = pDlg->bed_level ? "true" : "false";
+            upload_job.upload_data.extended_info["time_lapse"] = pDlg->time_lapse ? "true" : "false";
+        }
     }
 
     // Show "Is printer clean" dialog for PrusaConnect - Upload and print.

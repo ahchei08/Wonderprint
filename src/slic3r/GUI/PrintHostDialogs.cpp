@@ -154,29 +154,29 @@ size_t GocdeFileReadInfo(std::string& inputGCodePath, unsigned char* buff, wxStr
     return len;
 }
 
-void ReplaceTrueOrFalse(string path, string key, bool type)
-{
-    // std::fstream file(path, std::ios::in | std::ios::out | std::ios::binary);
-    std::fstream file(path, std::ios::in | std::ios::binary);
-    if (file.is_open()) {
-        cout << "open file ok!\n";
-        char buffer[1024] = {0};
-        file.read(buffer, 1023);
-        // 找到需要修改的行
-        char write_data[6] = "false";
-        if (type)
-            memcpy(write_data, "true ", 5);
-        size_t index = ((string) buffer).find(key);
-        cout << "find:" << index << ", length :" << key.length() << endl;
-        index += key.length();
-        /*if (index < 1000 && index > 10) {
-            file.seekp(index);
-            file.write(write_data, 5);
-        }*/
-        file.close();
-    } else
-        cout << "open file failed\n";
-}
+//void ReplaceTrueOrFalse(string path, string key, bool type)
+//{
+//    // std::fstream file(path, std::ios::in | std::ios::out | std::ios::binary);
+//    std::fstream file(path, std::ios::in | std::ios::binary);
+//    if (file.is_open()) {
+//        cout << "open file ok!\n";
+//        char buffer[1024] = {0};
+//        file.read(buffer, 1023);
+//        // 找到需要修改的行
+//        char write_data[6] = "false";
+//        if (type)
+//            memcpy(write_data, "true ", 5);
+//        size_t index = ((string) buffer).find(key);
+//        cout << "find:" << index << ", length :" << key.length() << endl;
+//        index += key.length();
+//        /*if (index < 1000 && index > 10) {
+//            file.seekp(index);
+//            file.write(write_data, 5);
+//        }*/
+//        file.close();
+//    } else
+//        cout << "open file failed\n";
+//}
 
 namespace Slic3r {
 namespace GUI {
@@ -294,12 +294,6 @@ void PrintHostSendDialog::init()
         std::cout << "cant'find _" << std::endl;
     }
     // std::string panel_name_str_first = panel_name_str.substr(0, panel_name_str.find('_'));
-
-    /*wxStringTokenizer tokenizer1(recent_path, wxT("_"));
-    wxString PanelName = tokenizer1.GetNextToken().Trim(true).Trim(false);
-    wxString          tmpToken  = wxString::FromUTF8(recent_path.utf8_string());
-    cout << "Recent path token0:" << tmpToken.ToUTF8() << endl;
-    cout << "PanelName:" << recent_path.utf8_string() << endl; */
     size_t png_size = GocdeFileReadInfo(gcodepath, buff, &resultFilament, panel_name_str_first);
     if (png_size > 0) {
         wxMemoryInputStream pngStream(buff, png_size); // 把解码后的PNG数据转为输入流
@@ -341,6 +335,8 @@ void PrintHostSendDialog::init()
     wxString m_url    = wxString::Format("http://%s/printer/objects/query", hostprint);
     wxString postData = "{\"objects\": {\"print_stats\": [\"state\"]}}";
     wxString response;
+    CheckBox* checkbox1      = new CheckBox(this, wxID_ANY);
+    CheckBox* checkbox2      = new CheckBox(this, wxID_ANY);
     bool     PrinterStandby = HttpJsonClient::SendPostRequest(m_url, postData, "application/json", response, 1);
     if (PrinterStandby)
         PrinterStandby = response.Contains("standby");
@@ -383,16 +379,6 @@ void PrintHostSendDialog::init()
                     filament_use_type[f_num-1] = 1;
                 }
             }
- /*           for (int i = 0; i < 4; i++) {
-                if (tokenizer.HasMoreTokens()) {
-                    wxString line = tokenizer.GetNextToken();
-                    double   val;
-                    line.ToDouble(&val);
-                    if (val == 0) {
-                        filament_use_type[i] = 0;
-                    }
-                }
-            }*/
         } else {
             for (int i = 0; i < 4; i++) {
                 filament_use_type[i] = 1;
@@ -432,35 +418,6 @@ void PrintHostSendDialog::init()
                 cout << postStr << endl;
                 cout << wxString::Format("%s:SAVE_VARIABLE:%d<-%d,%s\n", hostprint, i, sel, response);
             });
-            // m_popupMenu[i] = new wxMenu();
-            //// wxMenuItem* item = new wxMenuItem(m_popupMenu[i], -2, "1", "", wxITEM_NORMAL);
-            // m_popupMenu[i]->Append(wxID_ANY, "1");
-            // m_popupMenu[i]->Append(wxID_ANY, "2");
-            // m_popupMenu[i]->Append(wxID_ANY, "3");
-            // m_popupMenu[i]->Append(wxID_ANY, "4");
-            // m_popupMenu[i]->Bind(wxEVT_MENU, [this, m_popupMenu, text1, i, hostprint](wxCommandEvent& e) {
-            //     wxMenuItem* selectedItem = m_popupMenu[i]->FindItem(e.GetId());
-            //     if (selectedItem != nullptr) {
-            //         wxString selectedText = selectedItem->GetItemLabel();
-            //         long     num;
-            //         selectedText.ToLong(&num);
-            //         text1[i]->SetLabel(selectedText);
-            //         wxString url     = wxString::Format(GCODE_API_URL, hostprint);
-            //         wxString postStr = wxString::Format(GCODE_SET_FILAMENT, i, num - 1, i, num - 1);
-            //         wxString response;
-            //         HttpJsonClient::SendPostRequest(url, postStr, "application/json", response);
-            //         cout << postStr << endl;
-            //         cout << wxString::Format("%s:SAVE_VARIABLE:%d<-%d,%s\n", hostprint, i, num - 1, response);
-            //     }
-            // });
-            // filament[i]->Bind(wxEVT_LEFT_UP, [this, m_popupMenu, filament, i](wxMouseEvent& e) {
-            //     wxPoint pos = this->ScreenToClient(wxGetMousePosition());
-            //     PopupMenu(m_popupMenu[i], pos);
-            // });
-            // text1[i]->Bind(wxEVT_LEFT_UP, [this, m_popupMenu, filament, i](wxMouseEvent& e) {
-            //     wxPoint pos = this->ScreenToClient(wxGetMousePosition());
-            //     PopupMenu(m_popupMenu[i], pos);
-            // });
             if (colors->values.size() > i) {
                 filament[i]->SetBackgroundColour(wxColour(colors->values[i]));
                 if (wxColour(colors->values[i]).Green() < 64)
@@ -477,39 +434,34 @@ void PrintHostSendDialog::init()
         content_sizer->Add(filamentSizer);
 
         auto      checkbox_sizer1 = new wxBoxSizer(wxHORIZONTAL);
-        CheckBox* checkbox1       = new ::CheckBox(this, wxID_APPLY);
+        
         checkbox1->SetValue(false);
-
         checkbox_sizer1->Add(checkbox1, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
         auto checkbox_text1 = new wxStaticText(this, wxID_ANY, _L("Bed leveling : Off"), wxDefaultPosition, wxDefaultSize, 0);
         checkbox_sizer1->Add(checkbox_text1, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
-
-        checkbox1->Bind(wxEVT_TOGGLEBUTTON, [this, checkbox_text1, gcodepath](wxCommandEvent& e) {
+        checkbox1->Bind(wxEVT_TOGGLEBUTTON, [this, checkbox_text1](wxCommandEvent& e) {
             if (e.IsChecked()) {
                 checkbox_text1->SetLabel(_L("Bed leveling : On"));
             } else {
                 checkbox_text1->SetLabel(_L("Bed leveling : Off"));
                 // checkbox_text1->SetLabel(gcodepath);
             }
-            cout << gcodepath << endl;
-            ReplaceTrueOrFalse(gcodepath, "; bed_level = ", e.IsChecked());
+            //ReplaceTrueOrFalse(gcodepath, "; bed_level = ", e.IsChecked());
             e.Skip();
         });
-
         auto      checkbox_sizer2 = new wxBoxSizer(wxHORIZONTAL);
-        CheckBox* checkbox2       = new ::CheckBox(this, wxID_APPLY);
         checkbox2->SetValue(false);
 
         checkbox_sizer2->Add(checkbox2, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
         auto checkbox_text2 = new wxStaticText(this, wxID_ANY, _L("Time lapse : Off"), wxDefaultPosition, wxDefaultSize, 0);
         checkbox_sizer2->Add(checkbox_text2, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
-        checkbox2->Bind(wxEVT_TOGGLEBUTTON, [this, checkbox_text2, gcodepath, checkbox2](wxCommandEvent& e) {
-            checkbox2->SetValue(e.IsChecked());
-            if (e.IsChecked())
+        checkbox2->Bind(wxEVT_TOGGLEBUTTON, [this, checkbox_text2](wxCommandEvent& e) {
+            if (e.IsChecked()) {
                 checkbox_text2->SetLabel(_L("Time lapse : On"));
-            else
+            } else {
                 checkbox_text2->SetLabel(_L("Time lapse : Off"));
-            ReplaceTrueOrFalse(gcodepath, "; time_lapse = ", e.IsChecked());
+            } 
+            //ReplaceTrueOrFalse(gcodepath, "; time_lapse = ", e.IsChecked());
             e.Skip();
         });
 
@@ -567,9 +519,13 @@ void PrintHostSendDialog::init()
 
     if (post_actions.has(PrintHostPostUploadAction::StartPrint)) {
         auto* btn_print = add_button(wxID_YES, false, _L("Upload and Print"));
-        btn_print->Bind(wxEVT_BUTTON, [this, validate_path](wxCommandEvent&) {
+        btn_print->Bind(wxEVT_BUTTON, [this, checkbox1, checkbox2, validate_path](wxCommandEvent&) {
             if (validate_path(txt_filename->GetValue())) {
                 post_upload_action = PrintHostPostUploadAction::StartPrint;
+                if (checkbox1->GetValue())
+                    bed_level = true;
+                if (checkbox2->GetValue())
+                    time_lapse = true;
                 EndDialog(wxID_OK);
             }
         });

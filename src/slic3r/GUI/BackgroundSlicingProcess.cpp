@@ -906,7 +906,39 @@ void BackgroundSlicingProcess::export_gcode()
 	gcode_add_line_number(export_path, m_fff_print->full_print_config());
 
 }
-
+void ReplaceTrueOrFalse(string path,  bool type,bool type2 = false)
+{
+    string       key1 = "; bed_level = "; //"; bed_level = "
+    string       key2 = "; time_lapse = ";
+    std::fstream file(path, std::ios::in | std::ios::out | std::ios::binary);
+    if (file.is_open()) {
+        cout << "open file ok!\n";
+        char buffer[1024] = {0};
+        file.read(buffer, 1023);
+        // 找到需要修改的行
+        char write_data[6] = "true ";
+        if (type) {
+            size_t index = ((string) buffer).find(key1);
+            cout << "find key1:" << index << ", length :" << key1.length() << endl;
+            if (index < 1000 && index > 10) {
+                index += key1.length();
+                file.seekp(index);
+                file.write(write_data, 5);
+            }
+        }
+        if (type2) {
+            size_t index = ((string) buffer).find(key2);
+            cout << "find key2:" << index << ", length :" << key2.length() << endl;
+            if (index < 1000 && index > 10) {
+                index += key2.length();
+                file.seekp(index);
+                file.write(write_data, 5);
+            }
+        }
+        file.close();
+    } else
+        cout << "open file failed\n";
+}
 // A print host upload job has been scheduled, enqueue it to the printhost job queue
 void BackgroundSlicingProcess::prepare_upload()
 {
@@ -922,6 +954,18 @@ void BackgroundSlicingProcess::prepare_upload()
 		    std::string error_message;
 		    if (copy_file(m_temp_output_path, source_path.string(), error_message) != SUCCESS)
 		    	throw Slic3r::RuntimeError(_utf8(L("Copying of the temporary G-code to the output G-code failed")));
+            {//ahchei
+                cout << m_upload_job.printhost << endl;
+                cout << m_upload_job.upload_data.source_path << endl;
+                cout << m_upload_job.upload_data.upload_path << endl;
+                string tmp1 = m_upload_job.upload_data.extended_info["bed_level"];
+                string tmp2 = m_upload_job.upload_data.extended_info["time_lapse"];
+                if (tmp1 == "true" || tmp2 == "true")
+				{
+                    ReplaceTrueOrFalse(source_path.string(),  tmp1 == "true",  tmp2 == "true");
+				}
+			}
+
             m_upload_job.upload_data.upload_path = m_fff_print->print_statistics().finalize_output_path(m_upload_job.upload_data.upload_path.string());
 		    // Orca: skip post-processing scripts for BBL printers as we have run them already in finalize_gcode()
 		    // todo: do we need to copy the file?

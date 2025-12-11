@@ -1098,6 +1098,11 @@ void PlaterPresetComboBox::update()
     const Preset* selected_filament_preset = nullptr;
     if (m_type == Preset::TYPE_FILAMENT)
     {
+        //std::string filament_color = m_preset_bundle->project_config.opt_string("filament_colour", (unsigned int) m_filament_idx);
+        //wxColor     clr(filament_color);
+        //clr_picker->SetBackgroundColour(clr);
+        //clr_picker->SetBitmap(*get_extruder_color_icons(true)[m_filament_idx]);
+      
         std::vector<wxBitmap *> bitmaps = get_extruder_color_icons(true);
         if (m_filament_idx < bitmaps.size()) {
             clr_picker->SetBitmap(*bitmaps[m_filament_idx]);

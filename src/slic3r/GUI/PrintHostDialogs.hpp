@@ -37,6 +37,8 @@ public:
     virtual void EndModal(int ret) override;
     virtual void init();
     virtual std::map<std::string, std::string> extendedInfo() const { return {}; }
+    bool                                       bed_level;
+    bool                                       time_lapse;
 
 protected:
     wxTextCtrl *txt_filename;

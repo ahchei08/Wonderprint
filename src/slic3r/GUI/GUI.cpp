@@ -518,8 +518,8 @@ void login()
 	//LoginDialog dlg;
 	//dlg.ShowModal();
 
-	ZUserLogin dlg;
-    dlg.run();
+	//ZUserLogin dlg;	//ahchei
+    //dlg.run();
 }
 
 void desktop_open_datadir_folder()
