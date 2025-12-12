@@ -35,8 +35,9 @@
 #include "PrinterWebView.hpp"
 #include "calib_dlg.hpp"
 #include "MultiMachinePage.hpp"
+#if defined(_WIN32) || defined(_WIN64)
 #include "BrowserTabPanel.hpp"
-#define ENABEL_PRINT_ALL 0
+#endif
 
 class Notebook;
 class wxBookCtrlBase;
@@ -52,7 +53,9 @@ class PrintHostQueueDialog;
 class Plater;
 class MainFrame;
 class ParamsDialog;
+#if defined(_WIN32) || defined(_WIN64)
 class BrowserTabPanel;
+#endif
 enum QuickSlice
 {
     qsUndef = 0,
@@ -376,7 +379,9 @@ public:
     //AuxiliaryPanel*       m_auxiliary{ nullptr };
     MultiMachinePage*     m_multi_machine{ nullptr };
     ProjectPanel*         m_project{ nullptr };
+#if defined(_WIN32) || defined(_WIN64)
     BrowserTabPanel*      m_browser_tab{nullptr};
+#endif
     CalibrationPanel*     m_calibration{ nullptr };
     WebViewPanel*         m_webview { nullptr };
     PrinterWebView*       m_printer_view{nullptr};

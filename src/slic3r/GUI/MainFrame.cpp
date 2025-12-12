@@ -1053,7 +1053,9 @@ void MainFrame::show_option(bool show)
         }
     }
 }
+#if defined(_WIN32) || defined(_WIN64)
 #define costomAhchei 1
+#endif
 void MainFrame::init_tabpanel() {
     // wxNB_NOPAGETHEME: Disable Windows Vista theme for the Notebook background. The theme performance is terrible on
     // Windows 10 with multiple high resolution displays connected.
@@ -1076,7 +1078,8 @@ void MainFrame::init_tabpanel() {
 #endif
         //BBS
         wxWindow* panel = m_tabpanel->GetCurrentPage();
-#if costomAhchei
+#if defined(_WIN32) || defined(_WIN64)
+//#if costomAhchei
         if (GUI::get_app_config()->get_bool("TESTMODE")) {
             if (m_browser_tab != nullptr) {
                 if (panel == m_browser_tab) {
@@ -1185,7 +1188,8 @@ void MainFrame::init_tabpanel() {
     m_calibration = new CalibrationPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
     m_calibration->SetBackgroundColour(*wxWHITE);
     m_tabpanel->AddPage(m_calibration, _L("Calibration"), std::string("tab_calibration_active"), std::string("tab_calibration_active"), false);
-#if costomAhchei
+#if defined(_WIN32) || defined(_WIN64)
+//#if costomAhchei
     if (GUI::get_app_config()->get_bool("TESTMODE")) {
         m_browser_tab = new BrowserTabPanel(m_tabpanel);
         m_tabpanel->AddPage(m_browser_tab, _L("Device"), std::string("tab_monitor_active"), std::string("tab_monitor_active"), false);
@@ -1274,7 +1278,11 @@ void MainFrame::show_device(bool bBBLPrinter) {
                 m_printer_view->load_url(url, key);
             });
         }
-        if (!GUI::get_app_config()->get_bool("TESTMODE")) {
+        bool bTestMode = GUI::get_app_config()->get_bool("TESTMODE");
+#if !(defined(_WIN32) || defined(_WIN64))
+        bTestMode = false;
+#endif
+        if (!bTestMode) {
             if (m_printer_view == nullptr) {
                 m_printer_view = new PrinterWebView(m_tabpanel);
                 Bind(EVT_LOAD_PRINTER_URL, [this](LoadPrinterViewEvent& evt) {

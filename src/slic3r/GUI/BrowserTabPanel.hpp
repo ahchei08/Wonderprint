@@ -3123,235 +3123,6 @@ private:
         erroMessage = "";
     }
 };
-#if 0
-class customPanel : public wxPanel
-{
-public:
-    customPanel(wxWindow* parent, wxWindowID winid = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxDefaultSize)
-        : wxPanel(parent, winid, pos, size) 
-        //: wxPanel(parent, winid, pos, wxSize(160, 250))
-    {
-        //m_parent = parent;
-        SetBackgroundColour(*wxWHITE);
-        Bind(wxEVT_PAINT, &customPanel::onPaint, this);
-        Bind(wxEVT_MOTION, &customPanel::onMouseMove, this);
-        Bind(wxEVT_LEAVE_WINDOW, &customPanel::onMouseLeave, this);
-        Bind(wxEVT_LEFT_DOWN, &customPanel::onMouseClick, this);
-        
-        m_buttongo = new wxButton(this, wxID_ANY, "+", wxPoint(125, 10), wxSize(30, 30));
-        //m_buttongo->Hide();
-        m_buttongo->Bind(wxEVT_LEFT_DOWN, &customPanel::onMouseCilckGo, this); 
-        
-        m_textctrl = new wxComboBox(this, wxID_ANY, "", wxPoint(10, 13), wxSize(110, 25), choices);
-        m_textctrl->Bind(wxEVT_COMBOBOX, &customPanel::OnComboSelect, this);
-        m_textctrl->SetHint("Type Ip");
-        //m_textctrl->SetEditable(false);
-        m_textctrl->Hide();
-        m_statictxt = new wxStaticText(this, wxID_ANY, "No Printer", wxPoint(10, 15), wxSize(110, 25));
-        m_textctrl->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { 
-            m_buttongo->Show();
-        });
-        m_statictxt->SetToolTip(new wxToolTip(hostIp));
-        wxToolTip::Enable(true);
- 
-    }
-
-    bool IsPrintOnline(wxString& ip)
-    {
-        wxString url = wxString::Format("http://%s/printer/info", ip);
-        // 发送请求并解析JSON
-        wxString jsonResult;
-        
-        if (HttpJsonClient::GetPrinterJson(url, &jsonResult)) {
-            // 显示解析结果
-            hostIp = ip;
-            //wxString file_path = "E:\\new_orca\\OrcaSlicer\\build\\OrcaSlicer\\resources\\info\\printer.txt";
-            std::wstring path(size_t(MAX_PATH_Len), wchar_t(0));
-            int          len = int(::GetModuleFileName(nullptr, path.data(), MAX_PATH_Len));
-            if (len > 0 && len < MAX_PATH_Len) {
-                path.erase(path.begin() + len, path.end());
-            }
-            wxFileName mfileName(path);
-            wxString   file_path = mfileName.GetPath() + L"\\resources\\info\\printer.txt";
-
-            HttpJsonClient::Write_cursorIp(file_path, hostIp);
-            wxString          tmp = ip;
-            wxStringTokenizer tokenizer(tmp, ".");
-            while (tokenizer.HasMoreTokens()) {
-                tmp = tokenizer.GetNextToken();
-            }
-            m_statictxt->SetLabelText(wxString::Format("%s<%s>", jsonResult, tmp));
-            m_statictxt->SetToolTip(new wxToolTip(hostIp));
-            return true;
-        } else {
-            hostIp = "";
-            m_statictxt->SetLabelText("No Printer");
-            m_statictxt->SetToolTip(new wxToolTip("Printer connected fail"));
-        }
-        return false;
-    }
-
-    void SetIpText(wxString ip, wxArrayString choices1 )
-    {
-        if (choices1 != wxArrayString(NULL)) {
-            choices = choices1;
-            m_textctrl->Set(choices);
-            if (IsPrintOnline(ip)) {
-                wxCommandEvent event(wxEVT_BUTTON);
-                event.SetString(hostIp);
-                event.SetInt(999);
-                GetParent()->ProcessWindowEvent(event);
-            }
-        }
-    }
-
-private:
-    //BrowserTabPanel* m_parent;
-    wxArrayString choices;
-    wxString      hostIp  = "";
-    int      focosLine = -1;
-    int      selectedLine = 1;
-    bool     mouseIn1      = false;
-    wxButton* m_buttongo    = nullptr;
-    wxComboBox*   m_textctrl    = nullptr;
-    wxStaticText* m_statictxt   = nullptr;
-    // 选择下拉选项时触发
-    void OnComboSelect(wxCommandEvent& evt)
-    {
-        std::cout << "Selected item index: " << evt.GetSelection() << std::endl;
-        //wxString selected = m_textctrl->GetValue();
-        //m_textctrl->SetLabel(wxString::Format("已选择：%s", selected));
-    }
-    
-    void onMouseMove(wxMouseEvent& event)
-    {
-        // 获取鼠标位置
-        wxPoint pos = event.GetPosition();
-        // 根据鼠标位置计算当前行号
-        int lineHeight = 50; // 每行高度
-        int lineIndex  = pos.y / lineHeight;
-        if (lineIndex != focosLine) {
-            //text = wxString::Format("Mouse over line: %d", lineIndex);
-            focosLine = lineIndex;
-            Refresh(); // 触发重绘
-        }
-        //event.Skip();
-    }
-    void onMouseLeave(wxMouseEvent& event)
-    {
-        focosLine = -1;
-        Refresh(); // 触发重绘
-        //event.Skip();
-    }
-    void onMouseClickLabel(wxMouseEvent& event)
-    {
-        if (!mouseIn1) {
-            mouseIn1 = true;
-            m_buttongo->SetLabelText("Go");
-            m_statictxt->Hide();
-            m_textctrl->Show();
-            m_textctrl->SetFocus();
-        }
-        event.Skip();
-    }
-    void onMouseCilckGo(wxMouseEvent& event)
-    {
-        if (!mouseIn1) {
-            mouseIn1 = true;
-            m_buttongo->SetLabelText("Go");
-            m_statictxt->Hide();
-            m_textctrl->Show();
-            m_textctrl->SetFocus();
-        } else {
-            if (m_textctrl->GetValue() == "")
-                return;
-            wxCommandEvent evt(wxEVT_BUTTON);
-            evt.SetString("");
-            evt.SetInt(999);
-            //GetParent()->ProcessWindowEvent(evt);
-            mouseIn1 = false;
-            m_buttongo->Hide();
-            m_buttongo->SetLabelText("+");
-            // m_statictxt->SetLabelText(m_textctrl->GetValue());
-            // m_textctrl->SetEditable(false);
-            m_textctrl->Hide();
-            if (IsPrintOnline(m_textctrl->GetValue())) {
-                // wxCommandEvent evt(wxEVT_BUTTON);
-                evt.SetString(hostIp);              
-            }
-            m_statictxt->Show();
-            m_buttongo->Show();
-            GetParent()->ProcessWindowEvent(evt);
-            
-        }
-    }
-    void onMouseClick(wxMouseEvent& event)
-    {
-        wxPoint pos        = event.GetPosition();
-        int     lineHeight = 50; // 每行高度
-        if (pos.y / lineHeight == 0) {
-            /*mouseIn1 = !mouseIn1;
-            if (mouseIn1) {
-                wxString msg = "Device_Connect";
-                event.SetEventObject((wxObject*) &msg);
-                event.SetId(0);
-                GetParent()->ProcessWindowEvent(event);
-            } */
-        }
-        else if (pos.y / lineHeight != selectedLine) {
-            selectedLine = pos.y / lineHeight;
-            if (selectedLine < 5) {
-                wxString msg = "Tab_Change";
-                //event.SetEventObject((wxObject*) &msg);
-                //event.SetId(pos.y / lineHeight);
-                //GetParent()->ProcessWindowEvent(event);
-
-                wxCommandEvent evt(wxEVT_BUTTON);
-                //evt.SetEventObject((wxObject*) &msg);
-                evt.SetString(msg);
-                evt.SetInt(selectedLine);
-                GetParent()->ProcessWindowEvent(evt);
-            }
-            Refresh(); // 触发重绘
-        }
-        event.Skip();
-    }
-    void onPaint(wxPaintEvent& event)
-    {
-        wxPaintDC dc(this);
-        // 绘制背景
-        dc.SetBrush(*wxWHITE_BRUSH);
-        dc.SetPen(*wxWHITE_PEN);
-        dc.DrawRectangle(GetClientRect());
-        if (selectedLine >= 0 && selectedLine < 5) {
-            dc.SetBrush(*wxLIGHT_GREY_BRUSH);
-            dc.SetPen(*wxTRANSPARENT_PEN);
-            dc.DrawRectangle(0, 50 * selectedLine, 160, 50);
-        }
-        if (focosLine >= 0 && focosLine < 5) {
-            wxColour m_borderColor(0, 120, 215); // 蓝色边框
-            dc.SetPen(wxPen(m_borderColor, 2, wxPENSTYLE_SOLID));
-            dc.SetBrush(*wxTRANSPARENT_BRUSH);
-            dc.DrawRectangle(0, 50 * focosLine, 159, 50);
-        }
-        dc.SetTextForeground(*wxBLACK);
-        wxFont font = GetFont();
-        //font.MakeBold();
-        dc.SetFont(font);
-        //dc.DrawText("192.168.1.224", 30, 15);
-        dc.DrawText("Status", 44, 65);
-        dc.DrawText("Storage", 44, 115);
-        dc.DrawText("Hidden", 44, 165);//Update
-        dc.DrawText("Assistant", 44, 215);
-        dc.SetTextForeground(wxColour(128,128,128));
-        dc.DrawText(">", 140, 65);
-        dc.DrawText(">", 140, 115);
-        dc.DrawText(">", 140, 165);
-        dc.DrawText(">", 140, 215);
-        //event.Skip();
-    }
-};
-#endif
 class FarmManager : public wxPanel
 {
     #if 1
@@ -3362,8 +3133,8 @@ class FarmManager : public wxPanel
 #define PRINTER_PAUSE 8084
 #define PRINTER_RESUME 8085
 #define FARM_ID_BASE 20000
-#define PEINTERS_FILE_PATH L"\\resources\\info\\"
-#define PEINTERS_FILE_NAME L"auto_save.ini"
+#define PEINTERS_FILE_PATH "\\resources\\info\\"
+#define PEINTERS_FILE_NAME "auto_save.ini"
 #define PRINT
     enum IDX_COLUMN {
         idx_COL_NO     = 0,
@@ -3489,8 +3260,11 @@ public:
             }
             wxFileName mfileName(path);
             file_path = mfileName.GetPath() + PEINTERS_FILE_PATH;
+            //file_path = BrowserTabPanel::GetAppPath() + PEINTERS_FILE_PATH;
+
         } else
             file_path += PEINTERS_FILE_PATH;
+
         LoadPrinterListFromFile(file_path + PEINTERS_FILE_NAME);
         Bind(wxEVT_COMMAND_MENU_SELECTED, &FarmManager::OnCommandSelect, this);
         Bind(wxEVT_LIST_COL_CLICK, &FarmManager::OnListColClick, this);
@@ -4312,43 +4086,7 @@ public:
         //mR_Sizer->Fit(panelR);
         mainSizer->SetSizeHints(this);
     }
-    #if 0
-    void chageTab(int index)
-    { 
-        m_current_page = index;
-        panel1->Hide();
-        panel2->Hide();
-        panel3->Hide();
-        panel4->Hide();
-        panel3->SetActive(false);
-        mR_Sizer->Clear();
-        switch (index) {
-        case 0:
-        case 1:
-            panel1->Show();
-            mR_Sizer->Add(panel1, 1, wxEXPAND | wxALL, 10);
-            break;
-        case 2:
-            panel2->Show();
-            mR_Sizer->Add(panel2, 1, wxEXPAND | wxALL, 10);
-            if (hostIp != "" && !isFileShow) {
-                panel2->SetHostIp(hostIp);
-                isFileShow = true;
-            }
-            break;
-        case 3:
-            panel3->Show();
-            mR_Sizer->Add(panel3, 1, wxEXPAND | wxALL, 10);
-            panel3->SetActive(true);
-            break;
-        case 4:
-            panel4->Show();
-            mR_Sizer->Add(panel4, 1, wxEXPAND | wxALL, 10);
-            break;
-        }
-        mR_Sizer->Layout();
-    }
-    #endif
+   
     void TestLastPrinter() {
         fs::path file_path = m_AppPath.ToStdString() + "/resources/info/printer.txt";
 
@@ -4391,7 +4129,87 @@ public:
             //m_socket = nullptr;
         }
     }
-    wxString GetAppPath() {
+    #if 0
+    static std::string GetAppPath() {
+        std::string full_path;
+#if defined(_WIN32) || defined(_WIN64)
+        // Windows：使用 GetModuleFileNameA（ANSI 版本，对应 std::string）
+        std::vector<char> buf(MAX_PATH);
+        while (true) {
+            DWORD len = GetModuleFileNameA(nullptr, buf.data(), static_cast<DWORD>(buf.size()));
+            if (len == 0) {
+                throw std::runtime_error("GetModuleFileNameA failed, error code: " + std::to_string(GetLastError()));
+            }
+            if (len < buf.size()) {
+                full_path.assign(buf.data(), len);
+                break;
+            }
+            buf.resize(buf.size() * 2);
+        }
+
+#elif defined(__linux__)
+        // Linux：读取 /proc/self/exe 符号链接
+        std::vector<char> buf(1024);
+        while (true) {
+            ssize_t len = readlink("/proc/self/exe", buf.data(), buf.size() - 1); // 留1字节存'\0'
+            if (len == -1) {
+                throw std::runtime_error("readlink failed: " + std::string(strerror(errno)));
+            }
+            if (static_cast<size_t>(len) < buf.size() - 1) {
+                full_path.assign(buf.data(), len);
+                break;
+            }
+            // 缓冲区不足，翻倍扩容
+            buf.resize(buf.size() * 2);
+        }
+
+#elif defined(__APPLE__)
+        // macOS：_NSGetExecutablePath + realpath 转换绝对路径
+        char     path_buf[PATH_MAX];
+        uint32_t buf_len = PATH_MAX;
+        int      ret     = _NSGetExecutablePath(path_buf, &buf_len);
+        // 缓冲区不足时扩容
+        if (ret == -1) {
+            std::vector<char> big_buf(buf_len);
+            ret = _NSGetExecutablePath(big_buf.data(), &buf_len);
+            if (ret != 0) {
+                throw std::runtime_error("NSGetExecutablePath failed, code: " + std::to_string(ret));
+            }
+            // realpath 转换为绝对路径
+            char abs_path[PATH_MAX];
+            if (realpath(big_buf.data(), abs_path) == nullptr) {
+                throw std::runtime_error("realpath failed: " + std::string(strerror(errno)));
+            }
+            full_path = abs_path;
+        } else {
+            // 缓冲区足够，直接转换为绝对路径
+            char abs_path[PATH_MAX];
+            if (realpath(path_buf, abs_path) == nullptr) {
+                throw std::runtime_error("realpath failed: " + std::string(strerror(errno)));
+            }
+            full_path = abs_path;
+        }
+
+#endif
+        size_t last_slash_pos;
+#if defined(_WIN32) || defined(_WIN64)
+        // Windows 路径分隔符：\（注意转义），同时兼容 /（部分场景可能出现）
+        last_slash_pos = full_path.find_last_of("\\/");
+#else
+        // Linux/macOS 路径分隔符：/
+        last_slash_pos = full_path.find_last_of('/');
+#endif
+
+        if (last_slash_pos == std::string::npos) {
+            // 返回当前目录 "." 或根目录 "/"，避免返回空字符串
+            return full_path.empty() ? "." : full_path;
+        }
+        // 截取目录部分（从开头到最后一个分隔符）
+        return full_path.substr(0, last_slash_pos);
+    }
+    #else
+    static wxString GetAppPath() {
+
         std::wstring path(size_t(MAX_PATH_Len), wchar_t(0));
         int          len = int(::GetModuleFileName(nullptr, path.data(), MAX_PATH_Len));
         if (len > 0 && len < MAX_PATH_Len) {
@@ -4400,7 +4218,7 @@ public:
         wxFileName mfileName(path);
         return mfileName.GetPath();
     }
-
+    #endif
     void SynchronizeIP(wxString msg) {
         //cout << "update Ip:" << msg << endl;
         hostIp = msg;
@@ -4487,7 +4305,7 @@ public:
             if (hostIp != "") {
                 //HttpJsonClient::PostGocde(hostIp, msg);
                 char buffer[256];
-                std::string utf8_msg = msg.ToUTF8();
+                std::string utf8_msg = msg.ToUTF8().data();
                 snprintf(buffer, sizeof(buffer), "{\"script\": \"%s\"}", utf8_msg.c_str());
                 //wxString buffer = wxString::Format("{\"script\": \"%s\"}", msg);
                 //cout << "send gcode:" << buffer << endl;
