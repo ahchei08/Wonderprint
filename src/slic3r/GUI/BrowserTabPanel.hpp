@@ -36,6 +36,8 @@ namespace pt    = boost::property_tree;
 //using tcp       = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 //CircularImageButton* bt = dynamic_cast<CircularImageButton*>(event.GetEventObject());
 
+#define MAX_PATH_Len 260
+
 // 定义文件信息结构体
 struct m_FileInfo
 {
@@ -361,7 +363,7 @@ public:
             newPrinter.put("state", state);
             printertree1.push_back(std::make_pair("", newPrinter));
             // 如果文件存在，读取并处理原有内容
-            std::ifstream fileCheck(filePath);
+            std::ifstream fileCheck(filePath.ToStdString());
             if (fileCheck.good()) // 检查文件是否存在且可读取
             {
                 fileCheck.close();
@@ -448,7 +450,7 @@ public:
         wxFileName fileName(localFilePath);
         wxString contentType = HttpJsonClient::GetContentTypeByExtension(fileName.GetExt());
         // 打开本地文件（二进制模式）
-        std::ifstream file(localFilePath, std::ios::binary | std::ios::ate);
+        std::ifstream file(localFilePath.ToStdString(), std::ios::binary | std::ios::ate);
         if (!file.is_open()) {
             return false;
         }
@@ -637,12 +639,13 @@ public:
         } else {
             second_byte |= 127; // 127 表示后续8个字节是 payload 长度
             frame.push_back(second_byte);
-            auto len_bytes = ToBigEndian(payload_length);
+            auto len_bytes = ToBigEndian(static_cast<uint64_t> (payload_length));
             frame.insert(frame.end(), len_bytes.begin(), len_bytes.end());
         }
         // 掩码密钥 (Masking Key)
         srand((unsigned) time(NULL));
-        uint8_t maskKey[4] = {rand() & 0xff, rand() & 0xff, rand() & 0xff, rand() & 0xff};
+        uint8_t maskKey[4] = {static_cast<uint8_t>(rand() & 0xff), static_cast<uint8_t>(rand() & 0xff), static_cast<uint8_t>(rand() & 0xff),
+                              static_cast<uint8_t>(rand() & 0xff)};
         frame.push_back(maskKey[0]);
         frame.push_back(maskKey[1]);
         frame.push_back(maskKey[2]);
@@ -1405,7 +1408,7 @@ private:
             //subMenu->Append(wx_CunstmId + 11, wxString::FromUTF8("子菜单项2"));
             wxMenuItem* printItem = new wxMenuItem(menu, wx_CunstmId, wxString::FromUTF8("打印"), wxEmptyString,
                                                    wxITEM_NORMAL /*,subMenu*/);
-            printItem->SetBitmaps(wxArtProvider::GetBitmap(wxART_PRINT, wxART_MENU));
+            printItem->SetBitmap(wxArtProvider::GetBitmap(wxART_PRINT, wxART_MENU));
             //printItem->SetHelp(wxString::FromUTF8("打印选中的文件"));
             menu->Append(printItem);
             // menu->Append(wx_CunstmId, wxString::FromUTF8("打印"));    //, wxArtProvider::GetBitmap(wxART_PRINT, wxART_MENU)
@@ -1413,7 +1416,7 @@ private:
             menu->AppendSeparator();
             menu->Append(wx_CunstmId + 2, wxString::FromUTF8("预热")); //, wxArtProvider::GetBitmap(wxART_GO_UP, wxART_MENU)
             wxMenuItem* printItem1 = new wxMenuItem(menu, wx_CunstmId+3, wxString::FromUTF8("查看详情"), wxEmptyString,wxITEM_NORMAL);
-            printItem1->SetBitmaps(wxArtProvider::GetBitmap(wxART_EDIT, wxART_MENU));
+            printItem1->SetBitmap(wxArtProvider::GetBitmap(wxART_EDIT, wxART_MENU));
             menu->Append(printItem1);
         }
 
@@ -3163,9 +3166,9 @@ public:
             // 显示解析结果
             hostIp = ip;
             //wxString file_path = "E:\\new_orca\\OrcaSlicer\\build\\OrcaSlicer\\resources\\info\\printer.txt";
-            std::wstring path(size_t(MAX_PATH), wchar_t(0));
-            int          len = int(::GetModuleFileName(nullptr, path.data(), MAX_PATH));
-            if (len > 0 && len < MAX_PATH) {
+            std::wstring path(size_t(MAX_PATH_Len), wchar_t(0));
+            int          len = int(::GetModuleFileName(nullptr, path.data(), MAX_PATH_Len));
+            if (len > 0 && len < MAX_PATH_Len) {
                 path.erase(path.begin() + len, path.end());
             }
             wxFileName mfileName(path);
@@ -3479,9 +3482,9 @@ public:
         m_listCtrl->Bind(wxEVT_LIST_ITEM_RIGHT_CLICK, &FarmManager::onRightUp, this);
         // m_listCtrl->Bind(wxEVT_RIGHT_UP, &FarmManager::onRightUp, this);
         if (file_path == "") {
-            std::wstring path(size_t(MAX_PATH), wchar_t(0));
-            int          len = int(::GetModuleFileName(nullptr, path.data(), MAX_PATH));
-            if (len > 0 && len < MAX_PATH) {
+            std::wstring path(size_t(MAX_PATH_Len), wchar_t(0));
+            int          len = int(::GetModuleFileName(nullptr, path.data(), MAX_PATH_Len));
+            if (len > 0 && len < MAX_PATH_Len) {
                 path.erase(path.begin() + len, path.end());
             }
             wxFileName mfileName(path);
@@ -3862,7 +3865,7 @@ private:
         m_editor->Hide();
     }
     
-    bool ReadFileList(wxString& m_ip, wxArrayString* filelist)
+    bool ReadFileList(const wxString& m_ip, wxArrayString* filelist)
     {
         wxString       url = wxString::Format(m_File_url, m_ip);
         wxString       response;
@@ -4104,7 +4107,7 @@ private:
             } else if (m_listCtrl->GetItemText(m_editRow, idx_COL_STATUS) == "standby") {
                 m_menu->Append(FARM_ID_BASE + 1006, "Home XYZ");
                 wxString tmpFile = m_listCtrl->GetItemText(m_editRow, idx_COL_INFO);
-                if (tmpFile.EndsWith(".gcode",false)){
+                if (tmpFile.EndsWith(".gcode")){
                 //if (m_listCtrl->GetItemText(m_editRow, idx_COL_INFO) != "") {
                     //GetGroup(idx_COL_GROUP);
                     m_menu->Append(FARM_ID_BASE + 1005, "Print");                   
@@ -4279,7 +4282,7 @@ public:
         SendGcode->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
             //wxString gcode = txtGcode->GetValue();
             char        buffer[256];
-            std::string utf8_msg = txtGcode->GetValue().ToUTF8();
+            std::string utf8_msg = txtGcode->GetValue().ToUTF8().data();
             snprintf(buffer, sizeof(buffer), "{\"script\": \"%s\"}", utf8_msg.c_str());
             SocketSendRPC("printer.gcode.script", buffer, 1200);
         });        
@@ -4347,13 +4350,7 @@ public:
     }
     #endif
     void TestLastPrinter() {
-        /*std::wstring path(size_t(MAX_PATH), wchar_t(0));
-        int          len = int(::GetModuleFileName(nullptr, path.data(), MAX_PATH));
-        if (len > 0 && len < MAX_PATH) {
-            path.erase(path.begin() + len, path.end());
-        }
-        wxFileName mfileName(path);*/
-        fs::path file_path = m_AppPath + L"\\resources\\info\\printer.txt";
+        fs::path file_path = m_AppPath.ToStdString() + "/resources/info/printer.txt";
 
         //wxArrayString host_Ip_list;
         host_Ip_list.Add("");
@@ -4395,9 +4392,9 @@ public:
         }
     }
     wxString GetAppPath() {
-        std::wstring path(size_t(MAX_PATH), wchar_t(0));
-        int          len = int(::GetModuleFileName(nullptr, path.data(), MAX_PATH));
-        if (len > 0 && len < MAX_PATH) {
+        std::wstring path(size_t(MAX_PATH_Len), wchar_t(0));
+        int          len = int(::GetModuleFileName(nullptr, path.data(), MAX_PATH_Len));
+        if (len > 0 && len < MAX_PATH_Len) {
             path.erase(path.begin() + len, path.end());
         }
         wxFileName mfileName(path);

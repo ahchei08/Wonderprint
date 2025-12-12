@@ -955,9 +955,6 @@ void BackgroundSlicingProcess::prepare_upload()
 		    if (copy_file(m_temp_output_path, source_path.string(), error_message) != SUCCESS)
 		    	throw Slic3r::RuntimeError(_utf8(L("Copying of the temporary G-code to the output G-code failed")));
             {//ahchei
-                cout << m_upload_job.printhost << endl;
-                cout << m_upload_job.upload_data.source_path << endl;
-                cout << m_upload_job.upload_data.upload_path << endl;
                 string tmp1 = m_upload_job.upload_data.extended_info["bed_level"];
                 string tmp2 = m_upload_job.upload_data.extended_info["time_lapse"];
                 if (tmp1 == "true" || tmp2 == "true")
