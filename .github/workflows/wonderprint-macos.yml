@@ -1,0 +1,87 @@
+# 工作流名称：明确标识分支和用途
+name: Build macOS (wonderprint branch)
+
+# 触发条件：仅手动触发（workflow_dispatch），且限定在 wonderprint 分支
+on:
+  workflow_dispatch:
+    branches: [ wonder2_3_2 ] # 仅允许在 wonder2_3_2 分支手动触发
+
+# 作业配置
+jobs:
+  build-macos:
+    # 指定 macOS 运行器（最新版，也可指定 macos-14 等）
+    runs-on: macos-latest
+    # 限定仅在 wonderprint 分支执行（双重保障）
+    if: github.ref == 'refs/heads/wonderprint'
+
+    steps:
+      # 步骤1：拉取 wonderprint 分支的代码（包含 build_release_macos.sh）
+      - name: Checkout wonderprint branch code
+        uses: actions/checkout@v4
+        with:
+          ref: wonder2_3_2 # 强制拉取 wonderprint 分支
+          fetch-depth: 1   # 浅克隆，加快速度
+
+      # 步骤2：安装脚本依赖（按需调整，比如 CocoaPods、Homebrew 包等）
+      - name: Install build dependencies
+        run: |
+          echo "🔧 安装依赖..."
+          # 若脚本依赖 CocoaPods，执行以下命令（无则注释/删除）
+          if [ -f "Podfile" ]; then
+            pod install --repo-update
+          fi
+          # 若脚本依赖其他 Homebrew 包，按需添加
+          # brew install xxx
+
+      # 步骤3：设置 Xcode 版本（可选，匹配脚本兼容的 Xcode 版本）
+      - name: Select Xcode version
+        run: |
+          # 查看运行器已安装的 Xcode 版本（可选，调试用）
+          # ls /Applications | grep Xcode
+          # 替换为脚本兼容的版本（如 Xcode_15.app，默认最新版可注释此步骤）
+          sudo xcode-select -s /Applications/Xcode_15.app/Contents/Developer
+          # 验证 Xcode 版本
+          xcodebuild -version
+
+      # 步骤4：核心步骤 - 执行自定义编译脚本 build_release_macos.sh
+      - name: Run build script (build_release_macos.sh)
+        run: |
+          echo "🚀 开始执行编译脚本..."
+          # 确保脚本有可执行权限（关键！运行器环境可能丢失权限）
+          chmod +x ./build_release_macos.sh
+          # 执行脚本（若脚本需要参数，追加在后面，如 ./build_release_macos.sh --arg1）
+          ./build_release_macos.sh
+        # 脚本执行超时时间（按需调整，默认30分钟，可改 60 等）
+        timeout-minutes: 30
+
+      # 步骤5：查找并打包编译产物（需匹配脚本输出的 .app 路径）
+      - name: Package .app to zip
+        id: package
+        run: |
+          echo "📦 打包编译产物..."
+          # ========== 关键：替换为你脚本实际输出的 .app 路径 ==========
+          # 先本地执行 ./build_release_macos.sh，查看产物位置，再修改此处
+          APP_PATH="./build/Release/YourApp.app" # 示例路径，务必替换！
+          ZIP_NAME="wonderprint-macos-build-$(date +%Y%m%d-%H%M%S).zip" # 带时间戳，避免重名
+
+          # 检查 .app 文件是否存在，不存在则报错终止
+          if [ ! -d "$APP_PATH" ]; then
+            echo "❌ 未找到编译产物！路径：$APP_PATH"
+            exit 1
+          fi
+
+          # 打包 .app 为 zip（保留 macOS 可执行权限）
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_NAME"
+          # 输出 zip 路径，供后续步骤使用
+          echo "zip_path=$ZIP_NAME" >> $GITHUB_OUTPUT
+
+      # 步骤6：上传打包后的产物（可在 Actions 页面下载）
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          # 产物名称（便于识别）
+          name: wonderprint-macos-build
+          # 上传的文件路径（引用步骤5输出的 zip 路径）
+          path: ${{ steps.package.outputs.zip_path }}
+          # 产物保留时间（默认90天，可改）
+          retention-days: 90
