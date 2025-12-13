@@ -3318,7 +3318,10 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
         nlohmann::json root  = nlohmann::json::parse(Result);
         nlohmann::json sjson = root["result"]["status"];
         for (int i = 0; i < 4; i++) {
-            std::string key = wxString::Format("neopixel T%d_RGB", i).ToUTF8();
+            std::string key;
+            key.resize(20);
+            std::snprintf(&key[0], 20, "neopixel T%d_RGB", i);
+            //std::string key = std::format("neopixel T{}_RGB", i);
             if (sjson.contains(key)) {
                 m_color[i] = wxColour(sjson[key]["color_data"][0][0].get<float>() * 255, sjson[key]["color_data"][0][1].get<float>() * 255,
                                       sjson[key]["color_data"][0][2].get<float>() * 255);

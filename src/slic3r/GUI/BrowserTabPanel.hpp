@@ -498,6 +498,85 @@ public:
         return true;
     }
 
+    static std::string GetAppPath()
+    {
+        std::string full_path;
+#if defined(_WIN32) || defined(_WIN64)
+        // Windows：使用 GetModuleFileNameA（ANSI 版本，对应 std::string）
+        std::vector<char> buf(MAX_PATH);
+        while (true) {
+            DWORD len = GetModuleFileNameA(nullptr, buf.data(), static_cast<DWORD>(buf.size()));
+            if (len == 0) {
+                throw std::runtime_error("GetModuleFileNameA failed, error code: " + std::to_string(GetLastError()));
+            }
+            if (len < buf.size()) {
+                full_path.assign(buf.data(), len);
+                break;
+            }
+            buf.resize(buf.size() * 2);
+        }
+
+#elif defined(__linux__)
+        // Linux：读取 /proc/self/exe 符号链接
+        std::vector<char> buf(1024);
+        while (true) {
+            ssize_t len = readlink("/proc/self/exe", buf.data(), buf.size() - 1); // 留1字节存'\0'
+            if (len == -1) {
+                throw std::runtime_error("readlink failed: " + std::string(strerror(errno)));
+            }
+            if (static_cast<size_t>(len) < buf.size() - 1) {
+                full_path.assign(buf.data(), len);
+                break;
+            }
+            // 缓冲区不足，翻倍扩容
+            buf.resize(buf.size() * 2);
+        }
+
+#elif defined(__APPLE__)
+        // macOS：_NSGetExecutablePath + realpath 转换绝对路径
+        char     path_buf[PATH_MAX];
+        uint32_t buf_len = PATH_MAX;
+        int      ret     = _NSGetExecutablePath(path_buf, &buf_len);
+        // 缓冲区不足时扩容
+        if (ret == -1) {
+            std::vector<char> big_buf(buf_len);
+            ret = _NSGetExecutablePath(big_buf.data(), &buf_len);
+            if (ret != 0) {
+                throw std::runtime_error("NSGetExecutablePath failed, code: " + std::to_string(ret));
+            }
+            // realpath 转换为绝对路径
+            char abs_path[PATH_MAX];
+            if (realpath(big_buf.data(), abs_path) == nullptr) {
+                throw std::runtime_error("realpath failed: " + std::string(strerror(errno)));
+            }
+            full_path = abs_path;
+        } else {
+            // 缓冲区足够，直接转换为绝对路径
+            char abs_path[PATH_MAX];
+            if (realpath(path_buf, abs_path) == nullptr) {
+                throw std::runtime_error("realpath failed: " + std::string(strerror(errno)));
+            }
+            full_path = abs_path;
+        }
+
+#endif
+        size_t last_slash_pos;
+#if defined(_WIN32) || defined(_WIN64)
+        // Windows 路径分隔符：\（注意转义），同时兼容 /（部分场景可能出现）
+        last_slash_pos = full_path.find_last_of("\\/");
+#else
+        // Linux/macOS 路径分隔符：/
+        last_slash_pos = full_path.find_last_of('/');
+#endif
+
+        if (last_slash_pos == std::string::npos) {
+            // 返回当前目录 "." 或根目录 "/"，避免返回空字符串
+            return full_path.empty() ? "." : full_path;
+        }
+        // 截取目录部分（从开头到最后一个分隔符）
+        return full_path.substr(0, last_slash_pos);
+    }
+
     static void print_tree(pt::ptree* tree, bool type = true) // type = true格式化输出，false紧凑输出
     {
         if (tree) {
@@ -3253,14 +3332,14 @@ public:
         m_listCtrl->Bind(wxEVT_LIST_ITEM_RIGHT_CLICK, &FarmManager::onRightUp, this);
         // m_listCtrl->Bind(wxEVT_RIGHT_UP, &FarmManager::onRightUp, this);
         if (file_path == "") {
-            std::wstring path(size_t(MAX_PATH_Len), wchar_t(0));
+            /*std::wstring path(size_t(MAX_PATH_Len), wchar_t(0));
             int          len = int(::GetModuleFileName(nullptr, path.data(), MAX_PATH_Len));
             if (len > 0 && len < MAX_PATH_Len) {
                 path.erase(path.begin() + len, path.end());
             }
             wxFileName mfileName(path);
-            file_path = mfileName.GetPath() + PEINTERS_FILE_PATH;
-            //file_path = BrowserTabPanel::GetAppPath() + PEINTERS_FILE_PATH;
+            file_path = mfileName.GetPath() + PEINTERS_FILE_PATH;*/
+            file_path = HttpJsonClient::GetAppPath() + PEINTERS_FILE_PATH;
 
         } else
             file_path += PEINTERS_FILE_PATH;
@@ -3922,7 +4001,7 @@ public:
         cout << "scaleX:" << scaleX << endl;
 
         m_timer = new wxTimer(this);      
-        m_AppPath               = GetAppPath();
+        m_AppPath               = HttpJsonClient::GetAppPath();
         wxBoxSizer* mainSizer = new wxBoxSizer(wxHORIZONTAL);
         panel1Sizer = new wxBoxSizer(wxHORIZONTAL);
         wxBoxSizer* cameraSizer = new wxBoxSizer(wxVERTICAL);
@@ -4207,7 +4286,6 @@ public:
         // 截取目录部分（从开头到最后一个分隔符）
         return full_path.substr(0, last_slash_pos);
     }
-    #else
     static wxString GetAppPath() {
 
         std::wstring path(size_t(MAX_PATH_Len), wchar_t(0));

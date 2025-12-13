@@ -35,9 +35,7 @@
 #include "PrinterWebView.hpp"
 #include "calib_dlg.hpp"
 #include "MultiMachinePage.hpp"
-#if defined(_WIN32) || defined(_WIN64)
 #include "BrowserTabPanel.hpp"
-#endif
 
 class Notebook;
 class wxBookCtrlBase;
