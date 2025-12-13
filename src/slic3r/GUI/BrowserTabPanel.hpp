@@ -22,6 +22,9 @@
 #include <unordered_map>
 #include "nlohmann/json.hpp" 
 #include <cmath>
+#ifdef __APPLE__
+#include <mach-o/dyld.h> // 声明 _NSGetExecutablePath 的头文件
+#endif
 //#ifndef wxCUSTOMT_evt22
 //wxDECLARE_EVENT(wxCUSTOMT_evt22, wxCommandEvent);
 //wxDEFINE_EVENT(wxCUSTOMT_evt22, wxCommandEvent);
@@ -614,8 +617,8 @@ public:
 struct jsonrpcInfo
 {
     int   id;    
-    char* method;
-    char* params;
+    const char* method;
+    const char* params;
     int   resend = 0;
     char* text = "";
 };
@@ -1104,7 +1107,7 @@ private:
     int                   m_ICON_SIZE = 32;
     int                   ICON_SIZE_idx = 0;
     //bool                  IsonPaint     = false;
-    bool                  Switch_icon_b = false;
+    //bool                  Switch_icon_b = false;
     
     void onCustomTextUpdate(wxCommandEvent& event){
         if (event.GetId() == IMAGE_DOWNLOAD_FINISH) {
@@ -1215,16 +1218,22 @@ private:
         
     static void GetFileListInfo(void* arg, wxEvtHandler* m_parent, int id = 0)
     {
-        wxString     m_ip   = *(wxString*) ((void**) arg)[0];
-        int          isize  = *(int*) ((void**) arg)[1];
-        wxImageList* m_List = (wxImageList*) ((void**) arg)[2];
-        wxString     m_path = *(wxString*) ((void**) arg)[3];
+
+        void**       arg_array = static_cast<void**>(arg); // 先转为 void**，避免重复强转
+        wxString*    p_ip      = static_cast<wxString*>(arg_array[0]);
+        int*         p_isize   = static_cast<int*>(arg_array[1]);
+        wxImageList* m_List    = static_cast<wxImageList*>(arg_array[2]);
+        wxString*    p_path    = static_cast<wxString*>(arg_array[3]);
+
+        wxString m_ip   = *p_ip;
+        int      isize  = *p_isize;
+        wxString m_path = *p_path;      
         //json*        pfiles  = (json*) ((void**) arg)[3];
         if (!CreatImagePath(m_path,m_ip, isize)) {
-            delete ((void**) arg)[0];
-            delete ((void**) arg)[1];
-            delete ((void**) arg)[3];
-            delete arg;
+            delete p_ip;
+            delete p_isize;
+            delete p_path;
+            delete[] arg_array;
             return;
         }
         wxString url  = wxString::Format(m_File_url, m_ip);
@@ -1282,9 +1291,9 @@ private:
                 //return;
             }
         }
-        delete ((void**) arg)[0];
-        delete ((void**) arg)[1];
-        delete arg;
+        delete p_ip;
+        delete p_isize;
+        delete[] arg_array;
         return;
     }
 
@@ -1715,7 +1724,7 @@ public:
         SetBackgroundColour(m_backcolor);
     }
     void SetBorderEnable(bool enable) { m_Bordon = enable; }
-    void setHorizontal(bool horizontal) { Ishorizontal = horizontal; }
+    void setHorizontal(int horizontal) { Ishorizontal = horizontal; }
     
     wxColour m_backcolor  = *wxWHITE;
     wxColour txtColor     = wxColor("#B0B0B0");
@@ -1727,9 +1736,9 @@ public:
     bool     m_PaintClear = true;
 private:
     ScalableBitmap iconMap[2];
-    int            layoutType   = 0;
+    //int            layoutType   = 0;
     int            iconSzie;
-    bool           Ishorizontal = false;
+    int           Ishorizontal = 0;
     bool           m_Bordon     = false;
     wxToolTip*     m_tooltip    = nullptr;
 
@@ -3035,7 +3044,6 @@ public://wxSize(588, 480)
                     headPos[i] = sjson["toolhead"]["position"][i].get<double>();
                     XYZpos[i]->SetLabel(wxString::Format("%c=%.2f", 'X' + i, headPos[i]));
                 }
-                std::string::npos;
                 // std::cout << "X:" << headPos[0] << " Y:" << headPos[1] << " Z:" << headPos[2] << endl;
             }
             erro_i++;
@@ -3157,7 +3165,7 @@ public://wxSize(588, 480)
         int num = 0;
         if (hostIp != "") {
             num = 4;
-            memcpy(m_color, filament_C, sizeof(filament_C));
+            std::copy(std::begin(filament_C), std::end(filament_C), m_color);
         }
         return num;
     }
@@ -3165,7 +3173,7 @@ public://wxSize(588, 480)
 private:
     progressPanel* m_prog;
     ExtruderPanel* tempButton[5];
-    bool           Extruderstatus[5] = {1,0,0,0,1};
+    //bool           Extruderstatus[5] = {1,0,0,0,1};
     wxTimer* m_timer;
     wxBoxSizer*    leftSizer;
     MoveBarPanel* moveBarPanel;
@@ -3189,7 +3197,7 @@ private:
     const char*    filament_T[4] = {"neopixel T0_RGB", "neopixel T1_RGB", "neopixel T2_RGB", "neopixel T3_RGB"};
     wxColour       filament_C[4];
     int      fanSpeed[8]    = {0};
-    int      DrawLineWidth  = 1;
+    //int      DrawLineWidth  = 1;
     MeterPanel*     meterPanel;
     wxStaticText*   XYZpos[4];
     FanPanel*       lampPanel;
@@ -3420,7 +3428,7 @@ public:
             evt.SetString(*(wxString*) arg);
         }
         wxPostEvent(m_parent, evt);
-        delete arg;
+        delete (wxString*) arg;
     }
 
     static void funQurey(void* arg, wxEvtHandler* m_parent, int id = 0)
@@ -3463,7 +3471,7 @@ public:
         }
         // evt.SetString(jsonResult);
         wxPostEvent(m_parent, evt);
-        delete arg;
+        delete (wxString*) arg;
     }
 
     static void fun3(void* arg, wxEvtHandler* m_parent, int id = 0)
@@ -3477,7 +3485,7 @@ public:
             evt.SetString(*(wxString*) arg);
         }
         wxPostEvent(m_parent, evt);
-        delete arg;
+        delete (wxString*) arg;
     }
 
     void SavePrinterListToFile(wxString filename)
@@ -3529,7 +3537,7 @@ public:
 private:
 #if 1
     wxTextCtrl*   m_inputctrl;
-    wxStaticText* m_statictxt;
+    //wxStaticText* m_statictxt;
     wxListCtrl*   m_listCtrl;
     wxTimer*      m_timer;
     wxTimer*      m_timer_edit;
@@ -4208,95 +4216,7 @@ public:
             //m_socket = nullptr;
         }
     }
-    #if 0
-    static std::string GetAppPath() {
-        std::string full_path;
-#if defined(_WIN32) || defined(_WIN64)
-        // Windows：使用 GetModuleFileNameA（ANSI 版本，对应 std::string）
-        std::vector<char> buf(MAX_PATH);
-        while (true) {
-            DWORD len = GetModuleFileNameA(nullptr, buf.data(), static_cast<DWORD>(buf.size()));
-            if (len == 0) {
-                throw std::runtime_error("GetModuleFileNameA failed, error code: " + std::to_string(GetLastError()));
-            }
-            if (len < buf.size()) {
-                full_path.assign(buf.data(), len);
-                break;
-            }
-            buf.resize(buf.size() * 2);
-        }
-
-#elif defined(__linux__)
-        // Linux：读取 /proc/self/exe 符号链接
-        std::vector<char> buf(1024);
-        while (true) {
-            ssize_t len = readlink("/proc/self/exe", buf.data(), buf.size() - 1); // 留1字节存'\0'
-            if (len == -1) {
-                throw std::runtime_error("readlink failed: " + std::string(strerror(errno)));
-            }
-            if (static_cast<size_t>(len) < buf.size() - 1) {
-                full_path.assign(buf.data(), len);
-                break;
-            }
-            // 缓冲区不足，翻倍扩容
-            buf.resize(buf.size() * 2);
-        }
-
-#elif defined(__APPLE__)
-        // macOS：_NSGetExecutablePath + realpath 转换绝对路径
-        char     path_buf[PATH_MAX];
-        uint32_t buf_len = PATH_MAX;
-        int      ret     = _NSGetExecutablePath(path_buf, &buf_len);
-        // 缓冲区不足时扩容
-        if (ret == -1) {
-            std::vector<char> big_buf(buf_len);
-            ret = _NSGetExecutablePath(big_buf.data(), &buf_len);
-            if (ret != 0) {
-                throw std::runtime_error("NSGetExecutablePath failed, code: " + std::to_string(ret));
-            }
-            // realpath 转换为绝对路径
-            char abs_path[PATH_MAX];
-            if (realpath(big_buf.data(), abs_path) == nullptr) {
-                throw std::runtime_error("realpath failed: " + std::string(strerror(errno)));
-            }
-            full_path = abs_path;
-        } else {
-            // 缓冲区足够，直接转换为绝对路径
-            char abs_path[PATH_MAX];
-            if (realpath(path_buf, abs_path) == nullptr) {
-                throw std::runtime_error("realpath failed: " + std::string(strerror(errno)));
-            }
-            full_path = abs_path;
-        }
-
-#endif
-        size_t last_slash_pos;
-#if defined(_WIN32) || defined(_WIN64)
-        // Windows 路径分隔符：\（注意转义），同时兼容 /（部分场景可能出现）
-        last_slash_pos = full_path.find_last_of("\\/");
-#else
-        // Linux/macOS 路径分隔符：/
-        last_slash_pos = full_path.find_last_of('/');
-#endif
-
-        if (last_slash_pos == std::string::npos) {
-            // 返回当前目录 "." 或根目录 "/"，避免返回空字符串
-            return full_path.empty() ? "." : full_path;
-        }
-        // 截取目录部分（从开头到最后一个分隔符）
-        return full_path.substr(0, last_slash_pos);
-    }
-    static wxString GetAppPath() {
-
-        std::wstring path(size_t(MAX_PATH_Len), wchar_t(0));
-        int          len = int(::GetModuleFileName(nullptr, path.data(), MAX_PATH_Len));
-        if (len > 0 && len < MAX_PATH_Len) {
-            path.erase(path.begin() + len, path.end());
-        }
-        wxFileName mfileName(path);
-        return mfileName.GetPath();
-    }
-    #endif
+    
     void SynchronizeIP(wxString msg) {
         //cout << "update Ip:" << msg << endl;
         hostIp = msg;
@@ -4332,7 +4252,7 @@ public:
     
  private:
     wxString        hostIp         = "";
-    wxBoxSizer*     m_sizer;
+    //wxBoxSizer*     m_sizer;
     wxBoxSizer*     mR_Sizer;
     wxBoxSizer*     panel1Sizer;
     wxPanel*         panelR;
@@ -4448,9 +4368,6 @@ public:
         }
     }
 
-    wxButton* m_side_tools;
-    Tabbook*   m_tabpanel;
-    
     void ConnectServer(wxString ip,int port=7125) {
         wxIPV4address addr;
         addr.Hostname(ip);
@@ -4485,7 +4402,7 @@ public:
        // wxString receivedData(buffer, bytesRead);
         //std::cout << "receive:" << buffer << endl;
 
-        char* sendinfo1 = "{\"jsonrpc\": \"2.0\", \"method\": \"server.connection.identify\", "
+        const char* sendinfo1 = "{\"jsonrpc\": \"2.0\", \"method\": \"server.connection.identify\", "
                           "\"params\": {\"client_name\": \"orca\", \"version\": \"1.0.0\", \"type\": "
                           "\"web\", \"url\": \"https://github.com/eez_test\"}, \"id\": 444}";
         // m_socket->SetTimeout(5);
@@ -4496,7 +4413,7 @@ public:
         //std::cout << "receive:" << buffer << endl;
         //SET_FAN_SPEED FAN = auxiliary_fan SPEED = 0.5  //air_fan 
         
-        char* objects = "{\"jsonrpc\": \"2.0\", \"method\": \"printer.objects.subscribe\", \"params\""
+        const char* objects = "{\"jsonrpc\": \"2.0\", \"method\": \"printer.objects.subscribe\", \"params\""
                             ": {\"objects\": {"
                             "\"print_stats\": [\"state\", \"filename\"], "
                             "\"display_status\": [\"progress\"], "
@@ -4530,7 +4447,7 @@ public:
         } 
     }
 
-    void SocketSendRPC(char* method,char* params,int id,bool cheak = true)
+    void SocketSendRPC(const char* method,const char* params,int id,bool cheak = true)
     {
         jsonrpcInfo jrpc = {id, method, params, 0, "packet loss"};
         /*if (jrpc.text != "") {
