@@ -4,6 +4,7 @@
     "inherits": "fdm_process_wm_common",
     "from": "system",
     "instantiation": "false",
+	"bottom_solid_infill_flow_ratio": "0.94",
     "elefant_foot_compensation": "0.15",
     "top_shell_thickness": "1.0",
     "bridge_flow": "1",
