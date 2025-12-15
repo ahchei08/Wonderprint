@@ -60,8 +60,9 @@ if (APPLE)
 endif ()
 
 project(OrcaSlicer)
-set(SLIC3R_APP_NAME "Wonderprint-Orca" CACHE STRING "App display name" FORCE)
-set(SLIC3R_APP_KEY "Wonderprint-Orca" CACHE STRING "App executable key" FORCE)
+file(STRINGS "${CMAKE_SOURCE_DIR}/src/libslic3r/libslic3r_version.h" SLIC3R_APP_NAME_DEF REGEX "^#define SLIC3R_APP_NAME")
+string(REGEX REPLACE "^#define SLIC3R_APP_NAME \"(.*)\"" "\\1" SLIC3R_APP_NAME "${SLIC3R_APP_NAME_DEF}")
+set(SLIC3R_APP_NAME "${SLIC3R_APP_NAME}" CACHE STRING "App display name" FORCE)
 # Backward compatibility for old CMake versions
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_VERSION VERSION_LESS "3.25")
     set(LINUX ON CACHE BOOL "" FORCE)
