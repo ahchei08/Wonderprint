@@ -468,6 +468,10 @@ void PrintHostSendDialog::init()
         content_sizer->Add(checkbox_sizer1);
         content_sizer->Add(checkbox_sizer2);
         content_sizer->AddSpacer(VERT_SPACING);
+    } else {
+        content_sizer->Add(
+            new wxStaticText(this, wxID_ANY,
+                             _L("The printer is busy or not ready,unable to print now.\nWould you mind uploading the file first?")));
     }
     /*
     auto checkbox_sizer = new wxBoxSizer(wxHORIZONTAL);
@@ -530,8 +534,9 @@ void PrintHostSendDialog::init()
             }
         });
         if (!PrinterStandby) { // ahchei
-            btn_print->Enable(false);
-            btn_print->SetBackgroundColor(wxColour("#DFDFDF"));
+            btn_print->Hide();
+            //btn_print->Enable(false);
+            //btn_print->SetBackgroundColor(wxColour("#DFDFDF"));
         }
     }
 

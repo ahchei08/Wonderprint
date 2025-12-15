@@ -60,7 +60,6 @@ if (APPLE)
 endif ()
 
 project(OrcaSlicer)
-set(SLIC3R_APP_NAME "Wonderprint-Orca" CACHE STRING "App display name" FORCE)
 # Backward compatibility for old CMake versions
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_VERSION VERSION_LESS "3.25")
     set(LINUX ON CACHE BOOL "" FORCE)
