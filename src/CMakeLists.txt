@@ -13,8 +13,6 @@ add_subdirectory(clipper2)
 
 find_package(libnoise REQUIRED)
 
-include("libslic3r/slic3r_version.h")
-
 add_subdirectory(libslic3r)
 
 if (SLIC3R_GUI)
@@ -111,9 +109,9 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/dev-utils/platform/msw/OrcaSlicer.rc.
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/dev-utils/platform/msw/OrcaSlicer.manifest.in ${CMAKE_CURRENT_BINARY_DIR}/OrcaSlicer.manifest @ONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/dev-utils/platform/osx/Info.plist.in ${CMAKE_CURRENT_BINARY_DIR}/Info.plist @ONLY)
 if (WIN32)
-    add_library(${SLIC3R_APP_NAME} SHARED OrcaSlicer.cpp OrcaSlicer.hpp)
+    add_library(OrcaSlicer SHARED OrcaSlicer.cpp OrcaSlicer.hpp)
 else ()
-    add_executable(${SLIC3R_APP_NAME} OrcaSlicer.cpp OrcaSlicer.hpp)
+    add_executable(OrcaSlicer OrcaSlicer.cpp OrcaSlicer.hpp)
 endif ()
 
 if (MINGW)
@@ -226,8 +224,8 @@ else ()
     if (APPLE AND NOT CMAKE_MACOSX_BUNDLE)
         # On OSX, the name of the binary matches the name of the Application.
         add_custom_command(TARGET OrcaSlicer POST_BUILD
-            COMMAND ln -sf ${SLIC3R_APP_NAME} wonderprint-orca
-            WORKING_DIRECTORY "$<TARGET_FILE_DIR:${SLIC3R_APP_NAME}>"
+            COMMAND ln -sf OrcaSlicer orca-slicer
+            WORKING_DIRECTORY "$<TARGET_FILE_DIR:OrcaSlicer>"
             VERBATIM)
     else ()
         add_custom_command(TARGET OrcaSlicer POST_BUILD
@@ -248,9 +246,9 @@ else ()
             set(BIN_RESOURCES_DIR "${CMAKE_CURRENT_BINARY_DIR}/OrcaSlicer.app/Contents/Resources")
         endif()
         set(MACOSX_BUNDLE_ICON_FILE Icon.icns)
-        set(MACOSX_BUNDLE_BUNDLE_NAME "${SLIC3R_APP_NAME}")
+        set(MACOSX_BUNDLE_BUNDLE_NAME "OrcaSlicer")
         set(MACOSX_BUNDLE_SHORT_VERSION_STRING ${SoftFever_VERSION})
-        set(MACOSX_BUNDLE_COPYRIGHT "Copyright(C) 2022-2025 Wonder Maker All Rights Reserved")
+        set(MACOSX_BUNDLE_COPYRIGHT "Copyright(C) 2022-2024 Li Jiang All Rights Reserved")
     endif()
     add_custom_command(TARGET OrcaSlicer POST_BUILD
         COMMAND ln -sfn "${SLIC3R_RESOURCES_DIR}" "${BIN_RESOURCES_DIR}"
@@ -278,5 +276,5 @@ if (WIN32)
     endif ()
     install(FILES ${output_dlls_${build_type}} DESTINATION ".")
 else ()
-    install(TARGETS ${SLIC3R_APP_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" BUNDLE DESTINATION ${CMAKE_INSTALL_BINDIR})
+    install(TARGETS OrcaSlicer RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" BUNDLE DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif ()
