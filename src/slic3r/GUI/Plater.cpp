@@ -3313,25 +3313,28 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
                                        "\"neopixel T2_RGB\": null, \"neopixel T3_RGB\": null}}";
     wxString           m_url         = wxString::Format("http://%s:7125/printer/objects/query", hostprint);
     wxString           Result;
-    HttpJsonClient::SendPostRequest(m_url, objects, "application/json", Result,1);
-    try {
-        nlohmann::json root  = nlohmann::json::parse(Result);
-        nlohmann::json sjson = root["result"]["status"];
-        for (int i = 0; i < 4; i++) {
-            std::string key;
-            key.resize(20);
-            std::snprintf(&key[0], 20, "neopixel T%d_RGB", i);
-            //std::string key = std::format("neopixel T{}_RGB", i);
-            if (sjson.contains(key)) {
-                m_color[i] = wxColour(sjson[key]["color_data"][0][0].get<float>() * 255, sjson[key]["color_data"][0][1].get<float>() * 255,
-                                      sjson[key]["color_data"][0][2].get<float>() * 255);
-                f_num++;
-                //std::cout << "Filament " << i << " color: " << m_color[i].GetAsString(wxC2S_HTML_SYNTAX) << std::endl;
-                new_colors.push_back(m_color[i].GetAsString(wxC2S_HTML_SYNTAX).ToStdString());
+    if (HttpJsonClient::SendPostRequest(m_url, objects, "application/json", Result, 1)) {
+        try {
+            nlohmann::json root  = nlohmann::json::parse(Result);
+            const auto&    sjson = root["result"]["status"];
+            for (int i = 0; i < 4; i++) {
+                std::string key;
+                key.resize(20);
+                int len =std::snprintf(&key[0], 20, "neopixel T%d_RGB", i);
+                key.resize(len);
+                // std::string key = std::format("neopixel T{}_RGB", i);
+                if (sjson.contains(key)) {
+                    m_color[i] = wxColour(sjson[key]["color_data"][0][0].get<float>() * 255,
+                                          sjson[key]["color_data"][0][1].get<float>() * 255,
+                                          sjson[key]["color_data"][0][2].get<float>() * 255);
+                    f_num++;
+                    // std::cout << "Filament " << i << " color: " << m_color[i].GetAsString(wxC2S_HTML_SYNTAX) << std::endl;
+                    new_colors.push_back(m_color[i].GetAsString(wxC2S_HTML_SYNTAX).ToStdString());
+                }
             }
+        } catch (std::exception const& e) {
+            std::cerr << "Read Json error: " << e.what() << std::endl;
         }
-    } catch (std::exception const& e) {
-        std::cerr << "Read Json error: " << e.what() << std::endl;
     }
 #endif
     int fsize_1 = p->combos_filament.size();

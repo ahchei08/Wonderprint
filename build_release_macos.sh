@@ -190,7 +190,7 @@ function build_slicer() {
             mkdir -p "${APP_NAME}"
             cd "${APP_NAME}"
             # remove previously built app
-            rm -rf ./"${APP_NAME}"
+            rm -rf ./"${APP_NAME}.app"
             # fully copy newly built app
             cp -pR "../src$BUILD_DIR_CONFIG_SUBDIR/${APP_NAME}.app" ./${APP_NAME}.app
             # fix resources
