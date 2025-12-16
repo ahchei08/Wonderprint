@@ -469,6 +469,8 @@ void PrintHostSendDialog::init()
         content_sizer->Add(checkbox_sizer2);
         content_sizer->AddSpacer(VERT_SPACING);
     } else {
+        checkbox1->Hide();
+        checkbox2->Hide();
         content_sizer->Add(
             new wxStaticText(this, wxID_ANY,
                              _L("The printer is busy or not ready,unable to print now.\nWould you mind uploading the file first?")));
