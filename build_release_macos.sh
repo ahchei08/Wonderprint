@@ -187,18 +187,18 @@ function build_slicer() {
         echo "Fix macOS app package..."
         (
             cd "$PROJECT_BUILD_DIR"
-            mkdir -p &APP_NAME
-            cd &APP_NAME
+            mkdir -p "${APP_NAME}"
+            cd "${APP_NAME}"
             # remove previously built app
-            rm -rf ./&APP_NAME.app
+            rm -rf ./"${APP_NAME}"
             # fully copy newly built app
-            cp -pR "../src$BUILD_DIR_CONFIG_SUBDIR/&APP_NAME.app" ./&APP_NAME.app
+            cp -pR "../src$BUILD_DIR_CONFIG_SUBDIR/${APP_NAME}.app" ./${APP_NAME}.app
             # fix resources
-            resources_path=$(readlink ./&APP_NAME.app/Contents/Resources)
-            rm ./&APP_NAME.app/Contents/Resources
-            cp -R "$resources_path" ./&APP_NAME.app/Contents/Resources
+            resources_path=$(readlink ./${APP_NAME}.app/Contents/Resources)
+            rm ./${APP_NAME}.app/Contents/Resources
+            cp -R "$resources_path" ./${APP_NAME}.app/Contents/Resources
             # delete .DS_Store file
-            find ./&APP_NAME.app/ -name '.DS_Store' -delete
+            find ./${APP_NAME}.app/ -name '.DS_Store' -delete
             
             # Copy OrcaSlicer_profile_validator.app if it exists
             if [ -f "../src$BUILD_DIR_CONFIG_SUBDIR/OrcaSlicer_profile_validator.app/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
