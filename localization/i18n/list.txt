@@ -247,3 +247,4 @@ src/slic3r/GUI/FilamentBitmapUtils.cpp
 src/slic3r/GUI/FilamentBitmapUtils.hpp
 src/slic3r/GUI/FilamentPickerDialog.cpp
 src/slic3r/GUI/FilamentPickerDialog.hpp
+src/slic3r/GUI/BrowserTabPanel.hpp

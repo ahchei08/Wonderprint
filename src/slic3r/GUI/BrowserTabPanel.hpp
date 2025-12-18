@@ -7,6 +7,11 @@
 #include <wx/wx.h>
 //#include <wx/statbmp.h>
 //#include <wx/notebook.h>
+#include <wx/filefn.h>
+#include <wx/numformatter.h>
+#include <wx/dir.h>
+#include <wx/clipbrd.h>
+#include <wx/tooltip.h>
 #include <wx/textfile.h>
 #include <wx/url.h>
 #include <wx/tokenzr.h>
@@ -620,7 +625,7 @@ struct jsonrpcInfo
     const char* method;
     const char* params;
     int   resend = 0;
-    char* text = "";
+    const char* text   = "packet loss";
 };
 struct WebSocketFrameHeader
 {
@@ -4449,12 +4454,6 @@ public:
 
     void SocketSendRPC(const char* method,const char* params,int id,bool cheak = true)
     {
-        jsonrpcInfo jrpc = {id, method, params, 0, "packet loss"};
-        /*if (jrpc.text != "") {
-            jsonrpclist.push_back(jrpc);
-            if (m_timer && !m_timer->IsRunning())
-                m_timer->Start(500, wxTIMER_ONE_SHOT);
-        }*/
         if (!m_socket->IsConnected() && hostIp != "") {
             std::cout << "m_socket not connected:" << m_socket->LastError() << endl;
             ConnectServer(hostIp);
@@ -4466,6 +4465,7 @@ public:
         //cout << "sendinfo:\r\n" << sendinfo << endl;
         m_socket->Write(frame.data(), frame.size());
         if (cheak) {
+            jsonrpcInfo jrpc = {id, method, params};
             jsonrpclist.push_back(jrpc);
             if (m_timer && !m_timer->IsRunning())
                 m_timer->Start(500, wxTIMER_ONE_SHOT);
