@@ -121,8 +121,8 @@ endif (MINGW)
 
 if (NOT WIN32 AND NOT APPLE)
     # Binary name on unix like systems (Linux, Unix)
-    set_target_properties(OrcaSlicer PROPERTIES OUTPUT_NAME ${SLIC3R_APP_NAME})
-    set(SLIC3R_APP_CMD ${SLIC3R_APP_NAME})
+    set_target_properties(OrcaSlicer PROPERTIES OUTPUT_NAME "orca-slicer")
+    set(SLIC3R_APP_CMD "orca-slicer")
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/dev-utils/platform/unix/build_linux_image.sh.in ${CMAKE_CURRENT_BINARY_DIR}/build_linux_image.sh USE_SOURCE_PERMISSIONS @ONLY)
 endif ()
 
@@ -224,7 +224,7 @@ else ()
     if (APPLE AND NOT CMAKE_MACOSX_BUNDLE)
         # On OSX, the name of the binary matches the name of the Application.
         add_custom_command(TARGET OrcaSlicer POST_BUILD
-            COMMAND ln -sf ${SLIC3R_APP_NAME} orca-slicer
+            COMMAND ln -sf OrcaSlicer orca-slicer
             WORKING_DIRECTORY "$<TARGET_FILE_DIR:OrcaSlicer>"
             VERBATIM)
     else ()
@@ -246,7 +246,7 @@ else ()
             set(BIN_RESOURCES_DIR "${CMAKE_CURRENT_BINARY_DIR}/OrcaSlicer.app/Contents/Resources")
         endif()
         set(MACOSX_BUNDLE_ICON_FILE Icon.icns)
-        set(MACOSX_BUNDLE_BUNDLE_NAME ${SLIC3R_APP_NAME})
+        set(MACOSX_BUNDLE_BUNDLE_NAME "OrcaSlicer")
         set(MACOSX_BUNDLE_SHORT_VERSION_STRING ${SoftFever_VERSION})
         set(MACOSX_BUNDLE_COPYRIGHT "Copyright(C) 2022-2026 Wonder Maker All Rights Reserved")
     endif()
