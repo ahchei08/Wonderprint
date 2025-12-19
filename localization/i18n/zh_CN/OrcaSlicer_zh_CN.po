@@ -52,6 +52,30 @@ msgstr ""
 msgid "extruder"
 msgstr ""
 
+msgid "Model color:"
+msgstr "模型的色彩"
+
+msgid "The printer is busy or not ready,unable to print now.\nWould you mind uploading the file first?"
+msgstr "打印机未待命，无法立即打印。您可以先上传文件"
+
+msgid "Bed leveling : On"
+msgstr "热床调平：开启"
+
+msgid "Bed leveling : Off"
+msgstr "热床调平：关闭"
+
+msgid "Time lapse : Off"
+msgstr "延时摄影：关闭"
+
+msgid "Time lapse : On"
+msgstr "延时摄影：开启"
+
+msgid "Please confirm the model color matches the filament color on the\nmachine. If not, you can still adjust through this page."
+msgstr "请比较模型和机器上的材料颜色，如不匹配，请调整！"
+
+msgid "Instances"
+msgstr "实例副本"
+
 msgid "TPU is not supported by AMS."
 msgstr "AMS不支持TPU。"
 
@@ -2173,28 +2197,28 @@ msgid "Remove the selected plate"
 msgstr "删除所选盘"
 
 msgid "Add instance"
-msgstr ""
+msgstr "增加一个副本"
 
 msgid "Add one more instance of the selected object"
-msgstr ""
+msgstr "给选中对象增加一个副本"
 
 msgid "Remove instance"
-msgstr ""
+msgstr "减少一个副本"
 
 msgid "Remove one instance of the selected object"
-msgstr ""
+msgstr "给选中对象减少一个副本"
 
 msgid "Set number of instances"
-msgstr ""
+msgstr "设置增加副本的数量"
 
 msgid "Change the number of instances of the selected object"
-msgstr ""
+msgstr "改变选中对象的副本数量"
 
 msgid "Fill bed with instances"
-msgstr ""
+msgstr "用副本实例填满热床"
 
 msgid "Fill the remaining area of bed with instances of the selected object"
-msgstr ""
+msgstr "用所选对象的副本实例填充热床的剩余区域"
 
 msgid "Clone"
 msgstr "克隆"
