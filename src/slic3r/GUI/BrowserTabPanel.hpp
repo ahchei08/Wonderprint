@@ -7,11 +7,13 @@
 #include <wx/wx.h>
 //#include <wx/statbmp.h>
 //#include <wx/notebook.h>
-#include <wx/filefn.h>
+//use ubuntu2404
+#include <wx/wfstream.h>
 #include <wx/numformatter.h>
 #include <wx/dir.h>
 #include <wx/clipbrd.h>
 #include <wx/tooltip.h>
+//use ubuntu2404
 #include <wx/textfile.h>
 #include <wx/url.h>
 #include <wx/tokenzr.h>
