@@ -164,7 +164,7 @@ jobs:
       shell: bash
     - uses: flatpak/flatpak-github-actions/flatpak-builder@master
       with:
-        bundle: OrcaSlicer-Linux-flatpak_${{ env.ver }}_${{ matrix.variant.arch }}.flatpak
+        bundle: Wonderprint-Orca-Linux-flatpak_${{ env.ver }}_${{ matrix.variant.arch }}.flatpak
         manifest-path: scripts/flatpak/io.github.softfever.OrcaSlicer.yml
         cache: true
         arch: ${{ matrix.variant.arch }}
@@ -173,7 +173,7 @@ jobs:
       uses: actions/upload-artifact@v5
       with:
         name: Wonderprint-Orca-Linux-flatpak_${{ env.ver }}_${{ matrix.variant.arch }}.flatpak
-        path: '/__w/Wonderprint-Orca/Wonderprint-Orca/OrcaSlicer-Linux-flatpak_${{ env.ver }}_${{ matrix.variant.arch }}.flatpak'
+        path: '/__w/Wonderprint/Wonderprint/Wonderprint-Orca-Linux-flatpak_${{ env.ver }}_${{ matrix.variant.arch }}.flatpak'
     - name: Deploy Flatpak to nightly release
       if: github.repository == 'OrcaSlicer/OrcaSlicer' && github.ref == 'refs/heads/main'
       uses: WebFreak001/deploy-nightly@v3.2.0
