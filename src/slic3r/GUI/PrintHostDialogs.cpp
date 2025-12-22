@@ -30,13 +30,16 @@
 #include "format.hpp"
 
 namespace fs = boost::filesystem;
-size_t GocdeFileReadInfo(std::string& inputGCodePath, unsigned char* buff, wxString* tmpfilament, wxString PanelName)
+size_t GocdeFileReadInfo(std::string& wx_gcodepath, unsigned char* buff, wxString* tmpfilament, wxString PanelName)
 {
     size_t   len = 0;
     wxFile   lockfile;
     wxString lockContent = "";
+    wxFileName path_normalizer(wx_gcodepath); 
+    wxString   inputGCodePath = path_normalizer.GetFullPath(); 
+    wxFileName lock_file_info(inputGCodePath, "lock.txt");
     for (int i = 0; i < 50; i++) {
-        if (lockfile.Open(inputGCodePath + "\\lock.txt", wxFile::read)) {
+        if (lockfile.Open(lock_file_info.GetFullPath(), wxFile::read)) {
             wxString fileContent;
             if (lockfile.ReadAll(&fileContent)) {
                 lockContent = fileContent;
@@ -45,7 +48,7 @@ size_t GocdeFileReadInfo(std::string& inputGCodePath, unsigned char* buff, wxStr
             break;
         }
         wxMilliSleep(10);
-        if (i == 499) {
+        if (i == 49) {
             // wxLogError(wxT("Failed to open lock file: %s"), inputGCodePath.c_str());
             std::cout << "Failed to open lock file: " << inputGCodePath << endl;
             return 0;
@@ -53,13 +56,17 @@ size_t GocdeFileReadInfo(std::string& inputGCodePath, unsigned char* buff, wxStr
     }
     bool             fileFound = false;
     vector<wxString> fileList;
+    //wxString         metadata_dir = inputGCodePath + wxFileName::GetPathSeparator() + "Metadata"; // 拼接 Metadata 目录路径
+    wxFileName       metadata_dir(inputGCodePath, "");                                            // 空文件名，仅保留目录
+    metadata_dir.AppendDir("Metadata");
     for (int i = 0; i < 32; i++) {
-        wxString filepath = wxString::Format("%s\\Metadata\\.%s.%d.gcode", inputGCodePath, lockContent, i);
+        /*wxString filepath = wxString::Format("%s%sMetadata%s.%s.%d.gcode", inputGCodePath, wxFileName::GetPathSeparator(),
+                                             wxFileName::GetPathSeparator(),lockContent, i);*/
         // inputGCodePath    = filepath.ToUTF8();
-        wxFile iFile(filepath);
-        if (iFile.Exists(filepath)) {
+        wxFileName filepath(metadata_dir.GetPath(), wxString::Format(".%s.%d.gcode",lockContent, i));
+        if (filepath.Exists()) {
             fileFound = true;
-            fileList.push_back(filepath);
+            fileList.push_back(filepath.GetFullPath());
         } else if (fileFound)
             break;
     }
@@ -276,7 +283,7 @@ void PrintHostSendDialog::init()
     }*/
 
     string gcodepath = app_config->get("app", "last_backup_path");
-    std::replace(gcodepath.begin(), gcodepath.end(), '/', '\\');
+    //std::replace(gcodepath.begin(), gcodepath.end(), '/', '\\');
     unsigned char buff[1024 * 24] = {0};
     wxString      resultFilament  = "";
 
