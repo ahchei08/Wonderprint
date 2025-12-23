@@ -324,19 +324,15 @@ void PrintHostSendDialog::init()
             }
         }
     }
-
     std::vector<std::string> filament_type1 = wxGetApp().preset_bundle->filament_presets;
-    // cout << "filament preset size:" << filament_type1.size() << endl;
-    for (size_t i = 0; i < filament_type1.size() && i < 4; i++) {
-        cout << "filament preset " << i << ":" << filament_type1[i];
-        wxStringTokenizer tokenizer(from_u8(filament_type1[i]), " ");
-        wxString          tmp_n = tokenizer.GetNextToken();
-        filament_type1[i]       = tokenizer.GetNextToken().ToUTF8();
-        cout << ": " << filament_type1[i] << endl;
+    for (int i = 0; i < filament_type1.size(); i++) {
+        const Preset* curPreset = wxGetApp().preset_bundle->filaments.find_preset(filament_type1[i]);
+        if (curPreset) {
+            filament_type1[i] = curPreset->config.get_filament_type();
+        }
     }
-
-    const PrintStatistics& ps = wxGetApp().plater()->get_partplate_list().get_current_fff_print().print_statistics();
-
+    //const PrintStatistics& ps = wxGetApp().plater()->get_partplate_list().get_current_fff_print().print_statistics();
+   
     string hostprint = cfg1.opt_string("print_host");
     // ahchei
     wxString m_url    = wxString::Format("http://%s/printer/objects/query", hostprint);
@@ -416,7 +412,7 @@ void PrintHostSendDialog::init()
             m_choice[i]->SetMaxSize(wxSize(filament[i]->GetClientSize().x, -1));
             filament[i]->SetMinSize(wxSize(-1, m_choice[i]->GetClientSize().y));
             m_choice[i]->SetSelection(i);
-            m_choice[i]->Bind(wxEVT_CHOICE, [this, m_choice, i, hostprint, ps](wxCommandEvent& e) {
+            m_choice[i]->Bind(wxEVT_CHOICE, [this, m_choice, i, hostprint](wxCommandEvent& e) {
                 int      sel = m_choice[i]->GetSelection();
                 wxString url     = wxString::Format(GCODE_API_URL, hostprint);
                 wxString postStr = wxString::Format(GCODE_SET_FILAMENT, i, sel, i, sel);

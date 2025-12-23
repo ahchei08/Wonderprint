@@ -431,7 +431,8 @@ void GCodeProcessor::TimeMachine::calculate_time(size_t keep_last_n_blocks, floa
         float block_time = block.time();
         if (i == 0)
             block_time += additional_time;
-
+        if (block_time > 200)//ahchei
+            block_time = 1;
         time += block_time;
         gcode_time.cache += block_time;
         //BBS: don't calculate travel of start gcode into travel time
