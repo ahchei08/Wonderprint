@@ -1878,6 +1878,7 @@ void Tab::on_value_change(const std::string& opt_key, const boost::any& value)
             wxColour    new_col   = Plater::get_next_color_for_filament();
             std::string new_color = new_col.GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
             new_colors.push_back(new_color);
+            wxGetApp().plater()->sidebar().add_custom_filament(new_col);//ahchei
         }
         wxGetApp().preset_bundle->set_num_filaments(num_extruder, new_colors);
         wxGetApp().plater()->on_filament_count_change(num_extruder);

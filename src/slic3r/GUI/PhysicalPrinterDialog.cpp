@@ -58,7 +58,7 @@ PhysicalPrinterDialog::PhysicalPrinterDialog(wxWindow* parent) :
     Tab *tab = wxGetApp().get_tab(Preset::TYPE_PRINTER);
     m_presets = tab->get_presets();
     const Preset &sel_preset  = m_presets->get_selected_preset();
-    std::string suffix = _CTX_utf8(L_CONTEXT("Copy", "PresetName"), "PresetName");
+    std::string suffix = _CTX_utf8(L_CONTEXT("(hostname)", "PresetName"), "PresetName");
     std::string   preset_name = sel_preset.is_default ? "Untitled" : sel_preset.is_system ? (boost::format(("%1% - %2%")) % sel_preset.name % suffix).str() : sel_preset.name;
 
     auto input_sizer = new wxBoxSizer(wxVERTICAL);
@@ -449,6 +449,24 @@ void PhysicalPrinterDialog::update_printhost_buttons()
         m_printhost_browse_btn->Show(host->has_auto_discovery());
         m_printhost_logout_btn->Show(host->is_logged_in());
         m_printhost_test_btn->SetLabel(host->is_cloud() ? _L("Login/Test") : _L("Test"));
+        if (!m_config->opt_string("print_host").empty()) {
+
+            Preset& sel_preset = m_presets->get_selected_preset();
+            if (sel_preset.is_system) {
+                m_preset_name = sel_preset.name + " - (" + m_config->opt_string("print_host") + ")";
+            } else {
+                std::string delimiter     = " - (";
+                size_t      delimiter_pos = m_preset_name.find(delimiter);
+                if (delimiter_pos != std::string::npos) {
+                    if (m_preset_name.find(")") == m_preset_name.length() - 1) {
+                        m_preset_name = m_preset_name.substr(0, delimiter_pos + delimiter.length()) + m_config->opt_string("print_host") +
+                                        ")";
+                    }
+                }
+            }
+
+        }
+        
     }
 }
 

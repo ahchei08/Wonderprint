@@ -579,7 +579,7 @@ void Sidebar::priv::layout_printer(bool isBBL, bool isDual)
 
     // NEEDFIX requires AMS check or any type of ???
     // Single nozzle & non ams
-    panel_nozzle_dia->Show(!isDual && preset_bundle.get_printer_extruder_count() < 2);
+    //panel_nozzle_dia->Show(!isDual && preset_bundle.get_printer_extruder_count() < 2); //ahchei
     extruder_single_sizer->Show(false);
 }
 
@@ -3343,23 +3343,8 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
         for (int i = 0; i < f_num; i++) {
             if (i < fsize_1) {
                 DynamicPrintConfig*  cfg    = &wxGetApp().preset_bundle->project_config;
-                //
-
-                //ConfigOptionStrings* colors = static_cast<ConfigOptionStrings*>(cfg->option("filament_colour")->clone());
-                //DynamicPrintConfig cfg_new  = *cfg;
-
-
                 ConfigOptionStrings* colors = cfg->option<ConfigOptionStrings>("filament_colour");
                 colors->values[i]           = m_color[i].GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
-
-                //cfg_new.set_key_value("filament_colour", colors);
-                //cfg->apply(cfg_new);
-                //wxGetApp().plater()->update_project_dirty_from_presets();
-                //wxGetApp().preset_bundle->export_selections(*wxGetApp().app_config);
-                //p->combos_filament[i]->clr_picker->SetBackgroundColour(wxColour(colors->values[i]));
-                //p->combos_filament[i]->update();
-                //p->combos_filament[i]->clr_picker->Refresh();
-                //wxGetApp().plater()->on_config_change(cfg_new);
 
                 p->combos_filament[i]->m_clrData.SetColour(m_color[i]);
                 std::vector<std::string> color_i;
@@ -8920,6 +8905,17 @@ void Plater::priv::on_select_bed_type(wxCommandEvent &evt)
                 view3D->get_canvas3d()->render();
                 preview->msw_rescale();
             }
+        }
+    }
+    size_t filamentNum = sidebar->combos_filament().size();
+    size_t num_extruder = preset_bundle.get_printer_extruder_count();
+    if (num_extruder > filamentNum) {
+        std::vector<std::string> new_colors;
+        for (size_t i = filamentNum; i < num_extruder; ++i) {
+            wxColour    new_col   = Plater::get_next_color_for_filament();
+            std::string new_color = new_col.GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
+            new_colors.push_back(new_color);
+            wxGetApp().plater()->sidebar().add_custom_filament(new_col); // ahchei
         }
     }
 }
