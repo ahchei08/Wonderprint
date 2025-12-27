@@ -1,87 +1,349 @@
-# 工作流名称：明确标识分支和用途
-name: Build macOS (wonderprint branch)
-
-# 触发条件：仅手动触发（workflow_dispatch），且限定在 wonderprint 分支
+name: Build Mac
 on:
   workflow_dispatch:
-    branches: [ wonder2_3_2 ] # 仅允许在 wonder2_3_2 分支手动触发
+    inputs:
+      build-deps-only:
+        description: 'Only build dependencies (bypasses caching)'
+        type: boolean
+        default: false
+      # 新增：手动选择是否执行签名+公证
+      sign-and-notarize:
+        description: 'Sign and notarize the DMG (for release, need valid certs)'
+        type: boolean
+        default: false
+      # 新增：手动选择是否仅生成不公证的 DMG
+      create-dmg-only:
+        description: 'Only create DMG without signing/notarization (for test)'
+        type: boolean
+        default: true
 
-# 作业配置
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build-macos:
-    # 指定 macOS 运行器（最新版，也可指定 macos-14 等）
-    runs-on: macos-latest
-    # 限定仅在 wonderprint 分支执行（双重保障）
-    if: github.ref == 'refs/heads/wonderprint'
-
+  # 1. 缓存检查（原逻辑不变）
+  check_mac_cache:
+    name: Check Mac Dependencies Cache
+    runs-on: macos-14
+    outputs:
+      cache-key: ${{ steps.set_outputs.outputs.cache-key }}
+      cache-path: ${{ steps.set_outputs.outputs.cache-path }}
+      valid-cache: ${{ steps.cache_deps.outputs.cache-hit }}
     steps:
-      # 步骤1：拉取 wonderprint 分支的代码（包含 build_release_macos.sh）
-      - name: Checkout wonderprint branch code
-        uses: actions/checkout@v4
+      - name: Checkout Code (with LFS)
+        uses: actions/checkout@v5
         with:
-          ref: wonder2_3_2 # 强制拉取 wonderprint 分支
-          fetch-depth: 1   # 浅克隆，加快速度
+          lfs: 'true'
+          sparse-checkout-cone-mode: false
 
-      # 步骤2：安装脚本依赖（按需调整，比如 CocoaPods、Homebrew 包等）
-      - name: Install build dependencies
+      - name: Set Mac Cache Variables
+        id: set_outputs
         run: |
-          echo "🔧 安装依赖..."
-          # 若脚本依赖 CocoaPods，执行以下命令（无则注释/删除）
-          if [ -f "Podfile" ]; then
-            pod install --repo-update
-          fi
-          # 若脚本依赖其他 Homebrew 包，按需添加
-          # brew install xxx
+          echo "cache-key=macos-14-cache-orcaslicer_deps-build-${{ hashFiles('deps/**') }}" >> $GITHUB_OUTPUT
+          echo "cache-path=${{ github.workspace }}/deps/build" >> $GITHUB_OUTPUT
 
-      # 步骤3：设置 Xcode 版本（可选，匹配脚本兼容的 Xcode 版本）
-      - name: Select Xcode version
+      - name: Load Dependencies Cache (Lookup Only)
+        id: cache_deps
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.set_outputs.outputs.cache-path }}
+          key: ${{ steps.set_outputs.outputs.cache-key }}
+          lookup-only: true
+
+  # 2. 依赖构建（原逻辑不变）
+  build_mac_deps:
+    name: Build Mac Dependencies
+    needs: [check_mac_cache]
+    runs-on: macos-14
+    if: ${{ !cancelled() && (inputs.build-deps-only || false || needs.check_mac_cache.outputs.valid-cache != 'true') }}
+    env:
+      date: ${{ github.sha }}
+    steps:
+      - name: Checkout Full Code (with LFS)
+        uses: actions/checkout@v5
+        with:
+          lfs: 'true'
+
+      - name: Restore Dependencies Cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ needs.check_mac_cache.outputs.cache-path }}
+          key: ${{ needs.check_mac_cache.outputs.cache-key }}
+
+      - name: Install CMake 3.28.x
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~3.28.0"
+
+      - name: Install Mac Dependency Tools (brew)
         run: |
-          # 查看运行器已安装的 Xcode 版本（可选，调试用）
-          # ls /Applications | grep Xcode
-          # 替换为脚本兼容的版本（如 Xcode_15.app，默认最新版可注释此步骤）
-          sudo xcode-select -s /Applications/Xcode_15.app/Contents/Developer
-          # 验证 Xcode 版本
-          xcodebuild -version
+          brew update
+          brew install automake texinfo libtool
+          brew list
+          brew uninstall --ignore-dependencies zstd
+          brew cleanup
 
-      # 步骤4：核心步骤 - 执行自定义编译脚本 build_release_macos.sh
-      - name: Run build script (build_release_macos.sh)
+      - name: Build Mac Dependencies universal
+        working-directory: ${{ github.workspace }}
         run: |
-          echo "🚀 开始执行编译脚本..."
-          # 确保脚本有可执行权限（关键！运行器环境可能丢失权限）
-          chmod +x ./build_release_macos.sh
-          # 执行脚本（若脚本需要参数，追加在后面，如 ./build_release_macos.sh --arg1）
-          ./build_release_macos.sh
-        # 脚本执行超时时间（按需调整，默认30分钟，可改 60 等）
-        timeout-minutes: 30
+          ./build_release_macos.sh -dx -a universal -t 10.15 -1
+          for arch in arm64 x86_64; do
+            (cd "${{ github.workspace }}/deps/build/${arch}" && \
+            find . -mindepth 1 -maxdepth 1 ! -name 'OrcaSlicer_dep' -exec rm -rf {} +)
+          done
+          brew install zstd
 
-      # 步骤5：查找并打包编译产物（需匹配脚本输出的 .app 路径）
-      - name: Package .app to zip
-        id: package
+      - name: Exit if Only Build Dependencies
+        if: ${{ inputs.build-deps-only }}
+        run: exit 0
+
+  # 3. 主程序构建（核心修改：触发条件改为手动参数）
+  build_mac_main:
+    name: Build & Package Mac (universal)
+    needs: [build_mac_deps]
+    runs-on: macos-14
+    if: ${{ !cancelled() && !inputs.build-deps-only }}
+    env:
+      ver: ${{ github.sha }}-nightly
+      BUILD_DIR: ${{ github.workspace }}/build/universal
+      KEYCHAIN_PWD: "12345678"
+    steps:
+      - name: Checkout Code (for main build)
+        uses: actions/checkout@v5
+        with:
+          lfs: 'true'
+
+      - name: Free Disk Space & Install Tools
         run: |
-          echo "📦 打包编译产物..."
-          # ========== 关键：替换为你脚本实际输出的 .app 路径 ==========
-          # 先本地执行 ./build_release_macos.sh，查看产物位置，再修改此处
-          APP_PATH="./build/Release/YourApp.app" # 示例路径，务必替换！
-          ZIP_NAME="wonderprint-macos-build-$(date +%Y%m%d-%H%M%S).zip" # 带时间戳，避免重名
+          df -hI /dev/disk3s1s1
+          sudo find /Applications -maxdepth 1 -type d -name "Xcode_*.app" ! -name "Xcode_15.4.app" -exec rm -rf {} +
+          sudo rm -rf ~/Library/Developer/CoreSimulator/Caches/*
+          df -hI /dev/disk3s1s1
+          brew install libtool
+          brew list
+          mkdir -p ${{ env.BUILD_DIR }}
 
-          # 检查 .app 文件是否存在，不存在则报错终止
-          if [ ! -d "$APP_PATH" ]; then
-            echo "❌ 未找到编译产物！路径：$APP_PATH"
+      - name: Build OrcaSlicer Main Program
+        working-directory: ${{ github.workspace }}
+        run: |
+          ./build_release_macos.sh -s -n -x -a universal -t 10.15 -1
+          # 详细的文件排查 + 架构验证逻辑
+          TARGET_APP_PATH="${{ env.BUILD_DIR }}/OrcaSlicer/OrcaSlicer.app"
+          TARGET_EXEC_PATH="${TARGET_APP_PATH}/Contents/MacOS/OrcaSlicer"
+          
+          if [ -f "$TARGET_EXEC_PATH" ]; then
+            echo "=== 验证主程序架构 ==="
+            lipo -info "$TARGET_EXEC_PATH"
+            if ! lipo -info "$TARGET_EXEC_PATH" | grep -q "arm64 x86_64"; then
+              echo "错误：主程序不是 universal 架构！当前架构："
+              lipo -info "$TARGET_EXEC_PATH"
+              exit 1
+            fi
+          else
+            echo "错误：未找到指定的可执行文件：$TARGET_EXEC_PATH"
+            echo "=== 开始排查目录文件 ==="
+            echo "步骤1：${{ env.BUILD_DIR }}/OrcaSlicer 目录下的内容："
+            ls -la "${{ env.BUILD_DIR }}/OrcaSlicer/"
+            
+            APP_FILES=$(find "${{ env.BUILD_DIR }}/OrcaSlicer/" -maxdepth 1 -type d -name "*.app")
+            if [ -n "$APP_FILES" ]; then
+              echo -e "\n步骤2：找到的 APP 文件夹列表："
+              echo "$APP_FILES"
+              for APP in $APP_FILES; do
+                EXEC_DIR="${APP}/Contents/MacOS/"
+                echo -e "\n步骤3：${APP} 的 Contents/MacOS 目录内容："
+                ls -la "$EXEC_DIR"
+                EXEC_FILES=$(find "$EXEC_DIR" -maxdepth 1 -type f -executable)
+                if [ -n "$EXEC_FILES" ]; then
+                  echo "该目录下的可执行文件："
+                  echo "$EXEC_FILES"
+                  for EXEC in $EXEC_FILES; do
+                    echo -e "\n${EXEC} 的架构信息："
+                    lipo -info "$EXEC"
+                  done
+                else
+                  echo "该目录下无可执行文件"
+                fi
+              done
+            else
+              echo -e "\n步骤2：${{ env.BUILD_DIR }}/OrcaSlicer 目录下未找到任何 .app 文件夹"
+            fi
             exit 1
           fi
 
-          # 打包 .app 为 zip（保留 macOS 可执行权限）
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_NAME"
-          # 输出 zip 路径，供后续步骤使用
-          echo "zip_path=$ZIP_NAME" >> $GITHUB_OUTPUT
+      # 导入 Provisioning Profile（原逻辑不变）
+      - name: Import Provisioning Profile
+        # 仅当选择签名+公证时才导入 Profile
+        if: ${{ inputs.sign-and-notarize }}
+        env:
+          PROFILE_BASE64: ${{ secrets.MACOS_PROVISION_PROFILE_BASE64 }}
+        run: |
+          PROFILE_DIR=~/Library/MobileDevice/Provisioning\ Profiles
+          mkdir -p $PROFILE_DIR
+          echo "$PROFILE_BASE64" | base64 --decode > $PROFILE_DIR/orcaslicer_profile.provisionprofile
+          echo "Profile 导入完成，路径：$PROFILE_DIR/orcaslicer_profile.provisionprofile"
 
-      # 步骤6：上传打包后的产物（可在 Actions 页面下载）
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+      # 核心修改1：签名+公证步骤 → 触发条件改为手动选择的 sign-and-notarize 参数
+      - name: Sign & Notarize App
+        if: ${{ inputs.sign-and-notarize }}
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.WONDERMAKERDIST }}
+          P12_PASSWORD: ${{ secrets.MAC_P12_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          TEAM_ID: "752C3QMAKU" 
+        run: |
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          # 1. 解码 P12 证书
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode --output $CERTIFICATE_PATH
+
+          # 2. 创建并配置钥匙串
+          security create-keychain -p ${{ env.KEYCHAIN_PWD }} $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p ${{ env.KEYCHAIN_PWD }} $KEYCHAIN_PATH
+          security import $CERTIFICATE_PATH -P $P12_PASSWORD -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ${{ env.KEYCHAIN_PWD }} $KEYCHAIN_PATH
+
+          # 3. 提取证书ID
+          CERTIFICATE_ID=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep "Developer ID Application" | awk '{print $2}' | head -n1)
+          echo "自动提取的证书ID：$CERTIFICATE_ID"
+          if [ -z "$CERTIFICATE_ID" ]; then
+            echo "错误：未找到有效的签名证书！"
+            security find-identity -v -p codesigning
+            exit 1
+          fi
+
+          # 4. 签名主程序
+          codesign --deep --force --verbose --options runtime --timestamp \
+            --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements \
+            --sign "$CERTIFICATE_ID" ${{ env.BUILD_DIR }}/OrcaSlicer/OrcaSlicer.app
+
+          # 5. 签名 Profile Validator（若存在）
+          VALIDATOR_APP="${{ env.BUILD_DIR }}/OrcaSlicer/OrcaSlicer_profile_validator.app"
+          if [ -f "$VALIDATOR_APP/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
+            codesign --deep --force --verbose --options runtime --timestamp \
+              --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements \
+              --sign "$CERTIFICATE_ID" $VALIDATOR_APP
+          fi
+
+          # 6. 生成主 DMG 并签名
+          DMG_SRC="${{ env.BUILD_DIR }}/OrcaSlicer_dmg"
+          mkdir -p $DMG_SRC && rm -rf $DMG_SRC/*
+          cp -R ${{ env.BUILD_DIR }}/OrcaSlicer/OrcaSlicer.app $DMG_SRC/
+          ln -sfn /Applications $DMG_SRC/Applications
+          DMG_NAME="OrcaSlicer_Mac_universal_${{ env.ver }}_signed.dmg" # 加后缀区分签名版
+          hdiutil create -volname "OrcaSlicer" -srcfolder $DMG_SRC -ov -format UDZO $DMG_NAME
+          codesign --deep --force --verbose --options runtime --timestamp \
+            --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements \
+            --sign "$CERTIFICATE_ID" $DMG_NAME
+
+          # 7. 生成 Profile Validator DMG 并签名（若存在）
+          if [ -f "$VALIDATOR_APP/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
+            VALIDATOR_DMG_SRC="${{ env.BUILD_DIR }}/OrcaSlicer_profile_validator_dmg"
+            mkdir -p $VALIDATOR_DMG_SRC && rm -rf $VALIDATOR_DMG_SRC/*
+            cp -R $VALIDATOR_APP $VALIDATOR_DMG_SRC/
+            ln -sfn /Applications $VALIDATOR_DMG_SRC/Applications
+            VALIDATOR_DMG_NAME="OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}_signed.dmg"
+            hdiutil create -volname "OrcaSlicer Profile Validator" -srcfolder $VALIDATOR_DMG_SRC -ov -format UDZO $VALIDATOR_DMG_NAME
+            codesign --deep --force --verbose --options runtime --timestamp \
+              --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements \
+              --sign "$CERTIFICATE_ID" $VALIDATOR_DMG_NAME
+          fi
+
+          # 8. 苹果公证
+          echo "开始公证主 DMG：$DMG_NAME"
+          xcrun notarytool submit "$DMG_NAME" \
+            --apple-id "$APPLE_ID" \
+            --password "$APP_SPECIFIC_PASSWORD" \
+            --team-id "$TEAM_ID" \
+            --wait
+          xcrun stapler staple "$DMG_NAME"
+
+          if [ -f "$VALIDATOR_DMG_NAME" ]; then
+            echo "开始公证 Profile Validator DMG：$VALIDATOR_DMG_NAME"
+            xcrun notarytool submit "$VALIDATOR_DMG_NAME" \
+              --apple-id "$APPLE_ID" \
+              --password "$APP_SPECIFIC_PASSWORD" \
+              --team-id "$TEAM_ID" \
+              --wait
+            xcrun stapler staple "$VALIDATOR_DMG_NAME"
+          fi
+
+      # 核心修改2：仅生成不公证 DMG 步骤 → 触发条件改为手动选择的 create-dmg-only 参数
+      - name: Create DMG (Without Notarization)
+        if: ${{ inputs.create-dmg-only }}
+        run: |
+          DMG_SRC="${{ env.BUILD_DIR }}/OrcaSlicer_dmg"
+          mkdir -p $DMG_SRC && rm -rf $DMG_SRC/*
+          cp -R ${{ env.BUILD_DIR }}/OrcaSlicer/OrcaSlicer.app $DMG_SRC/
+          ln -sfn /Applications $DMG_SRC/Applications
+          DMG_NAME="OrcaSlicer_Mac_universal_${{ env.ver }}_test.dmg" # 加后缀区分测试版
+          hdiutil create -volname "OrcaSlicer" -srcfolder $DMG_SRC -ov -format UDZO $DMG_NAME
+
+          VALIDATOR_APP="${{ env.BUILD_DIR }}/OrcaSlicer/OrcaSlicer_profile_validator.app"
+          if [ -f "$VALIDATOR_APP/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
+            VALIDATOR_DMG_SRC="${{ env.BUILD_DIR }}/OrcaSlicer_profile_validator_dmg"
+            mkdir -p $VALIDATOR_DMG_SRC && rm -rf $VALIDATOR_DMG_SRC/*
+            cp -R $VALIDATOR_APP $VALIDATOR_DMG_SRC/
+            ln -sfn /Applications $VALIDATOR_DMG_SRC/Applications
+            VALIDATOR_DMG_NAME="OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}_test.dmg"
+            hdiutil create -volname "OrcaSlicer Profile Validator" -srcfolder $VALIDATOR_DMG_SRC -ov -format UDZO $VALIDATOR_DMG_NAME
+          fi
+
+      # 上传签名+公证的 DMG（仅当选择该选项时）
+      - name: Upload Signed & Notarized DMG
+        if: ${{ inputs.sign-and-notarize }}
+        uses: actions/upload-artifact@v5
         with:
-          # 产物名称（便于识别）
-          name: wonderprint-macos-build
-          # 上传的文件路径（引用步骤5输出的 zip 路径）
-          path: ${{ steps.package.outputs.zip_path }}
-          # 产物保留时间（默认90天，可改）
-          retention-days: 90
+          name: OrcaSlicer_Mac_universal_${{ env.ver }}_signed
+          path: ${{ github.workspace }}/OrcaSlicer_Mac_universal_${{ env.ver }}_signed.dmg
+
+      # 上传仅测试用的 DMG（仅当选择该选项时）
+      - name: Upload Test DMG (Without Notarization)
+        if: ${{ inputs.create-dmg-only }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: OrcaSlicer_Mac_universal_${{ env.ver }}_test
+          path: ${{ github.workspace }}/OrcaSlicer_Mac_universal_${{ env.ver }}_test.dmg
+
+      # 上传 Profile Validator 相关 DMG（按需）
+      - name: Upload Signed Profile Validator DMG
+        if: ${{ inputs.sign-and-notarize && hashFiles('OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}_signed.dmg') != '' }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}_signed
+          path: ${{ github.workspace }}/OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}_signed.dmg
+
+      - name: Upload Test Profile Validator DMG
+        if: ${{ inputs.create-dmg-only && hashFiles('OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}_test.dmg') != '' }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}_test
+          path: ${{ github.workspace }}/OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}_test.dmg
+          
+      # 部署逻辑（仅当选择签名+公证且是 main 分支时执行）
+      - name: Deploy Nightly Release (Main Branch)
+        if: ${{ inputs.sign-and-notarize && github.repository == 'ahchei08/Wonderprint' && github.ref == 'refs/heads/main' }}
+        uses: WebFreak001/deploy-nightly@v3.2.0
+        with:
+          upload_url: https://uploads.github.com/repos/ahchei08/Wonderprint/releases/271695561/assets{?name,label}
+          release_id: 271695561
+          asset_path: ${{ github.workspace }}/OrcaSlicer_Mac_universal_${{ env.ver }}_signed.dmg
+          asset_name: WonderMaker_Mac_universal_nightly.dmg
+          asset_content_type: application/octet-stream
+          max_releases: 1
+
+      - name: Deploy Profile Validator Nightly
+        if: ${{ inputs.sign-and-notarize && github.repository == 'OrcaSlicer/OrcaSlicer' && github.ref == 'refs/heads/main' && hashFiles('OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}_signed.dmg') != '' }}
+        uses: WebFreak001/deploy-nightly@v3.2.0
+        with:
+          upload_url: https://uploads.github.com/repos/OrcaSlicer/OrcaSlicer/releases/271695561/assets{?name,label}
+          release_id: 271695561
+          asset_path: ${{ github.workspace }}/OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}_signed.dmg
+          asset_name: OrcaSlicer_profile_validator_Mac_universal_nightly.dmg
+          asset_content_type: application/octet-stream
+          max_releases: 1
