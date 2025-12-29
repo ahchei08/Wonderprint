@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # 1. 缓存检查（原逻辑不变）
+  # 1. 缓存检查（优化：缓存路径精准指向 OrcaSlicer_dep，与原版对齐）
   check_mac_cache:
     name: Check Mac Dependencies Cache
     runs-on: macos-14
@@ -40,8 +40,10 @@ jobs:
       - name: Set Mac Cache Variables
         id: set_outputs
         run: |
+          # 优化1：缓存键与原版格式保持一致，确保哈希精准
           echo "cache-key=macos-14-cache-orcaslicer_deps-build-${{ hashFiles('deps/**') }}" >> $GITHUB_OUTPUT
-          echo "cache-path=${{ github.workspace }}/deps/build" >> $GITHUB_OUTPUT
+          # 优化2：缓存路径精准指向 OrcaSlicer_dep（依赖产物核心目录），而非整个 build
+          echo "cache-path=${{ github.workspace }}/deps/build/OrcaSlicer_dep" >> $GITHUB_OUTPUT
 
       - name: Load Dependencies Cache (Lookup Only)
         id: cache_deps
@@ -51,12 +53,12 @@ jobs:
           key: ${{ steps.set_outputs.outputs.cache-key }}
           lookup-only: true
 
-  # 2. 依赖构建（原逻辑不变）
+  # 2. 依赖构建（优化：补全缓存保存、产物标准化，确保 Boost 完整编译）
   build_mac_deps:
     name: Build Mac Dependencies
     needs: [check_mac_cache]
     runs-on: macos-14
-    if: ${{ !cancelled() && (inputs.build-deps-only || false || needs.check_mac_cache.outputs.valid-cache != 'true') }}
+    if: ${{ !cancelled() && (inputs.build-deps-only || needs.check_mac_cache.outputs.valid-cache != 'true') }}
     env:
       date: ${{ github.sha }}
     steps:
@@ -87,18 +89,31 @@ jobs:
       - name: Build Mac Dependencies universal
         working-directory: ${{ github.workspace }}
         run: |
+          # 保持原有构建命令，确保 Boost 下载解压编译
           ./build_release_macos.sh -dx -a universal -t 10.15 -1
+          # 优化3：产物清理（原版逻辑），仅保留有效依赖产物，删除冗余中间文件
           for arch in arm64 x86_64; do
             (cd "${{ github.workspace }}/deps/build/${arch}" && \
             find . -mindepth 1 -maxdepth 1 ! -name 'OrcaSlicer_dep' -exec rm -rf {} +)
           done
+          # 优化4：统一复制所有架构的产物到核心缓存目录，确保主程序构建可访问
+          mkdir -p ${{ github.workspace }}/deps/build/OrcaSlicer_dep
+          cp -R ${{ github.workspace }}/deps/build/arm64/OrcaSlicer_dep/* ${{ github.workspace }}/deps/build/OrcaSlicer_dep/ 2>/dev/null || true
+          cp -R ${{ github.workspace }}/deps/build/x86_64/OrcaSlicer_dep/* ${{ github.workspace }}/deps/build/OrcaSlicer_dep/ 2>/dev/null || true
           brew install zstd
+
+      - name: Save Dependencies Cache (Update New Build)
+        uses: actions/cache@v4
+        if: ${{ !inputs.build-deps-only && needs.check_mac_cache.outputs.valid-cache != 'true' }}
+        with:
+          path: ${{ needs.check_mac_cache.outputs.cache-path }}
+          key: ${{ needs.check_mac_cache.outputs.cache-key }}
 
       - name: Exit if Only Build Dependencies
         if: ${{ inputs.build-deps-only }}
         run: exit 0
 
-  # 3. 主程序构建（核心修改：触发条件改为手动参数）
+  # 3. 主程序构建（核心优化：补全依赖路径传递、构建上下文、容错性增强）
   build_mac_main:
     name: Build & Package Mac (universal)
     needs: [build_mac_deps]
@@ -108,11 +123,19 @@ jobs:
       ver: ${{ github.sha }}-nightly
       BUILD_DIR: ${{ github.workspace }}/build/universal
       KEYCHAIN_PWD: "12345678"
+      # 新增：依赖产物目录环境变量，统一传递给构建脚本
+      DEPS_DIR: ${{ github.workspace }}/deps/build/OrcaSlicer_dep
     steps:
       - name: Checkout Code (for main build)
         uses: actions/checkout@v5
         with:
           lfs: 'true'
+
+      - name: Restore Dependencies Cache for Main Build
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.DEPS_DIR }}
+          key: ${{ needs.check_mac_cache.outputs.cache-key }}
 
       - name: Free Disk Space & Install Tools
         run: |
@@ -120,15 +143,22 @@ jobs:
           sudo find /Applications -maxdepth 1 -type d -name "Xcode_*.app" ! -name "Xcode_15.4.app" -exec rm -rf {} +
           sudo rm -rf ~/Library/Developer/CoreSimulator/Caches/*
           df -hI /dev/disk3s1s1
-          brew install libtool
+          brew install libtool zstd
           brew list
           mkdir -p ${{ env.BUILD_DIR }}
 
-      - name: Build OrcaSlicer Main Program
+      - name: Build OrcaSlicer Main Program (with Boost Path)
         working-directory: ${{ github.workspace }}
         run: |
+          # 优化5：显式传递 Boost 依赖路径给构建脚本，补全上下文（核心修复）
+          export BOOST_ROOT="${{ env.DEPS_DIR }}"
+          export Boost_DIR="${{ env.DEPS_DIR }}/lib/cmake/Boost-1.84.0"
+          export CMAKE_PREFIX_PATH="${{ env.DEPS_DIR }}:${CMAKE_PREFIX_PATH}"
+          
+          # 执行主程序构建，保留原有参数
           ./build_release_macos.sh -s -n -x -a universal -t 10.15 -1
-          # 详细的文件排查 + 架构验证逻辑
+          
+          # 详细的文件排查 + 架构验证逻辑（保留并增强容错）
           TARGET_APP_PATH="${{ env.BUILD_DIR }}/OrcaSlicer/OrcaSlicer.app"
           TARGET_EXEC_PATH="${TARGET_APP_PATH}/Contents/MacOS/OrcaSlicer"
           
@@ -142,19 +172,24 @@ jobs:
             fi
           else
             echo "错误：未找到指定的可执行文件：$TARGET_EXEC_PATH"
-            echo "=== 开始排查目录文件 ==="
+            echo "=== 验证依赖产物是否完整 ==="
+            echo "Boost 根目录内容："
+            ls -la "${{ env.DEPS_DIR }}"
+            echo "Boost 配置文件目录内容："
+            ls -la "${{ env.DEPS_DIR }}/lib/cmake/" 2>/dev/null || echo "Boost 配置文件目录不存在"
+            echo "=== 开始排查主程序构建产物 ==="
             echo "步骤1：${{ env.BUILD_DIR }}/OrcaSlicer 目录下的内容："
-            ls -la "${{ env.BUILD_DIR }}/OrcaSlicer/"
+            ls -la "${{ env.BUILD_DIR }}/OrcaSlicer/" || echo "该目录不存在"
             
-            APP_FILES=$(find "${{ env.BUILD_DIR }}/OrcaSlicer/" -maxdepth 1 -type d -name "*.app")
+            APP_FILES=$(find "${{ env.BUILD_DIR }}/OrcaSlicer/" -maxdepth 1 -type d -name "*.app" 2>/dev/null)
             if [ -n "$APP_FILES" ]; then
               echo -e "\n步骤2：找到的 APP 文件夹列表："
               echo "$APP_FILES"
               for APP in $APP_FILES; do
                 EXEC_DIR="${APP}/Contents/MacOS/"
                 echo -e "\n步骤3：${APP} 的 Contents/MacOS 目录内容："
-                ls -la "$EXEC_DIR"
-                EXEC_FILES=$(find "$EXEC_DIR" -maxdepth 1 -type f -executable)
+                ls -la "$EXEC_DIR" 2>/dev/null || echo "该目录不存在"
+                EXEC_FILES=$(find "$EXEC_DIR" -maxdepth 1 -type f -executable 2>/dev/null)
                 if [ -n "$EXEC_FILES" ]; then
                   echo "该目录下的可执行文件："
                   echo "$EXEC_FILES"
@@ -172,9 +207,8 @@ jobs:
             exit 1
           fi
 
-      # 导入 Provisioning Profile（原逻辑不变）
+      # 导入 Provisioning Profile（保留原有逻辑）
       - name: Import Provisioning Profile
-        # 仅当选择签名+公证时才导入 Profile
         if: ${{ inputs.sign-and-notarize }}
         env:
           PROFILE_BASE64: ${{ secrets.MACOS_PROVISION_PROFILE_BASE64 }}
@@ -184,7 +218,7 @@ jobs:
           echo "$PROFILE_BASE64" | base64 --decode > $PROFILE_DIR/orcaslicer_profile.provisionprofile
           echo "Profile 导入完成，路径：$PROFILE_DIR/orcaslicer_profile.provisionprofile"
 
-      # 核心修改1：签名+公证步骤 → 触发条件改为手动选择的 sign-and-notarize 参数
+      # 签名+公证步骤（保留原有逻辑，增强路径容错）
       - name: Sign & Notarize App
         if: ${{ inputs.sign-and-notarize }}
         env:
@@ -192,7 +226,7 @@ jobs:
           P12_PASSWORD: ${{ secrets.MAC_P12_CERT_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          TEAM_ID: "752C3QMAKU" 
+          TEAM_ID: "752C3QMAKU"
         run: |
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
@@ -217,14 +251,19 @@ jobs:
             exit 1
           fi
 
-          # 4. 签名主程序
+          # 4. 签名主程序（增强路径容错）
+          TARGET_APP="${{ env.BUILD_DIR }}/OrcaSlicer/OrcaSlicer.app"
+          if [ ! -d "$TARGET_APP" ]; then
+            echo "错误：未找到待签名的 App 目录：$TARGET_APP"
+            exit 1
+          fi
           codesign --deep --force --verbose --options runtime --timestamp \
             --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements \
-            --sign "$CERTIFICATE_ID" ${{ env.BUILD_DIR }}/OrcaSlicer/OrcaSlicer.app
+            --sign "$CERTIFICATE_ID" $TARGET_APP
 
-          # 5. 签名 Profile Validator（若存在）
+          # 5. 签名 Profile Validator（若存在，增强容错）
           VALIDATOR_APP="${{ env.BUILD_DIR }}/OrcaSlicer/OrcaSlicer_profile_validator.app"
-          if [ -f "$VALIDATOR_APP/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
+          if [ -d "$VALIDATOR_APP" ] && [ -f "$VALIDATOR_APP/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
             codesign --deep --force --verbose --options runtime --timestamp \
               --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements \
               --sign "$CERTIFICATE_ID" $VALIDATOR_APP
@@ -233,16 +272,17 @@ jobs:
           # 6. 生成主 DMG 并签名
           DMG_SRC="${{ env.BUILD_DIR }}/OrcaSlicer_dmg"
           mkdir -p $DMG_SRC && rm -rf $DMG_SRC/*
-          cp -R ${{ env.BUILD_DIR }}/OrcaSlicer/OrcaSlicer.app $DMG_SRC/
+          cp -R $TARGET_APP $DMG_SRC/
           ln -sfn /Applications $DMG_SRC/Applications
-          DMG_NAME="OrcaSlicer_Mac_universal_${{ env.ver }}_signed.dmg" # 加后缀区分签名版
+          DMG_NAME="OrcaSlicer_Mac_universal_${{ env.ver }}_signed.dmg"
           hdiutil create -volname "OrcaSlicer" -srcfolder $DMG_SRC -ov -format UDZO $DMG_NAME
           codesign --deep --force --verbose --options runtime --timestamp \
             --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements \
             --sign "$CERTIFICATE_ID" $DMG_NAME
 
           # 7. 生成 Profile Validator DMG 并签名（若存在）
-          if [ -f "$VALIDATOR_APP/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
+          VALIDATOR_DMG_NAME=""
+          if [ -d "$VALIDATOR_APP" ] && [ -f "$VALIDATOR_APP/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
             VALIDATOR_DMG_SRC="${{ env.BUILD_DIR }}/OrcaSlicer_profile_validator_dmg"
             mkdir -p $VALIDATOR_DMG_SRC && rm -rf $VALIDATOR_DMG_SRC/*
             cp -R $VALIDATOR_APP $VALIDATOR_DMG_SRC/
@@ -263,7 +303,7 @@ jobs:
             --wait
           xcrun stapler staple "$DMG_NAME"
 
-          if [ -f "$VALIDATOR_DMG_NAME" ]; then
+          if [ -n "$VALIDATOR_DMG_NAME" ] && [ -f "$VALIDATOR_DMG_NAME" ]; then
             echo "开始公证 Profile Validator DMG：$VALIDATOR_DMG_NAME"
             xcrun notarytool submit "$VALIDATOR_DMG_NAME" \
               --apple-id "$APPLE_ID" \
@@ -273,19 +313,26 @@ jobs:
             xcrun stapler staple "$VALIDATOR_DMG_NAME"
           fi
 
-      # 核心修改2：仅生成不公证 DMG 步骤 → 触发条件改为手动选择的 create-dmg-only 参数
+      # 仅生成不公证 DMG 步骤（保留原有逻辑，增强路径容错）
       - name: Create DMG (Without Notarization)
         if: ${{ inputs.create-dmg-only }}
         run: |
+          TARGET_APP="${{ env.BUILD_DIR }}/OrcaSlicer/OrcaSlicer.app"
+          if [ ! -d "$TARGET_APP" ]; then
+            echo "错误：未找到待打包的 App 目录：$TARGET_APP"
+            exit 1
+          fi
+          
           DMG_SRC="${{ env.BUILD_DIR }}/OrcaSlicer_dmg"
           mkdir -p $DMG_SRC && rm -rf $DMG_SRC/*
-          cp -R ${{ env.BUILD_DIR }}/OrcaSlicer/OrcaSlicer.app $DMG_SRC/
+          cp -R $TARGET_APP $DMG_SRC/
           ln -sfn /Applications $DMG_SRC/Applications
-          DMG_NAME="OrcaSlicer_Mac_universal_${{ env.ver }}_test.dmg" # 加后缀区分测试版
+          DMG_NAME="OrcaSlicer_Mac_universal_${{ env.ver }}_test.dmg"
           hdiutil create -volname "OrcaSlicer" -srcfolder $DMG_SRC -ov -format UDZO $DMG_NAME
 
+          # 打包 Profile Validator（若存在）
           VALIDATOR_APP="${{ env.BUILD_DIR }}/OrcaSlicer/OrcaSlicer_profile_validator.app"
-          if [ -f "$VALIDATOR_APP/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
+          if [ -d "$VALIDATOR_APP" ] && [ -f "$VALIDATOR_APP/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
             VALIDATOR_DMG_SRC="${{ env.BUILD_DIR }}/OrcaSlicer_profile_validator_dmg"
             mkdir -p $VALIDATOR_DMG_SRC && rm -rf $VALIDATOR_DMG_SRC/*
             cp -R $VALIDATOR_APP $VALIDATOR_DMG_SRC/
@@ -294,7 +341,7 @@ jobs:
             hdiutil create -volname "OrcaSlicer Profile Validator" -srcfolder $VALIDATOR_DMG_SRC -ov -format UDZO $VALIDATOR_DMG_NAME
           fi
 
-      # 上传签名+公证的 DMG（仅当选择该选项时）
+      # 上传签名+公证的 DMG（保留原有逻辑）
       - name: Upload Signed & Notarized DMG
         if: ${{ inputs.sign-and-notarize }}
         uses: actions/upload-artifact@v5
@@ -302,7 +349,7 @@ jobs:
           name: OrcaSlicer_Mac_universal_${{ env.ver }}_signed
           path: ${{ github.workspace }}/OrcaSlicer_Mac_universal_${{ env.ver }}_signed.dmg
 
-      # 上传仅测试用的 DMG（仅当选择该选项时）
+      # 上传仅测试用的 DMG（保留原有逻辑）
       - name: Upload Test DMG (Without Notarization)
         if: ${{ inputs.create-dmg-only }}
         uses: actions/upload-artifact@v5
@@ -310,22 +357,24 @@ jobs:
           name: OrcaSlicer_Mac_universal_${{ env.ver }}_test
           path: ${{ github.workspace }}/OrcaSlicer_Mac_universal_${{ env.ver }}_test.dmg
 
-      # 上传 Profile Validator 相关 DMG（按需）
+      # 上传 Profile Validator 相关 DMG（按需，增强容错）
       - name: Upload Signed Profile Validator DMG
-        if: ${{ inputs.sign-and-notarize && hashFiles('OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}_signed.dmg') != '' }}
+        if: ${{ inputs.sign-and-notarize }}
         uses: actions/upload-artifact@v5
         with:
           name: OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}_signed
           path: ${{ github.workspace }}/OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}_signed.dmg
+          if-no-files-found: warn
 
       - name: Upload Test Profile Validator DMG
-        if: ${{ inputs.create-dmg-only && hashFiles('OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}_test.dmg') != '' }}
+        if: ${{ inputs.create-dmg-only }}
         uses: actions/upload-artifact@v5
         with:
           name: OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}_test
           path: ${{ github.workspace }}/OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}_test.dmg
+          if-no-files-found: warn
           
-      # 部署逻辑（仅当选择签名+公证且是 main 分支时执行）
+      # 部署逻辑（保留原有逻辑，修正仓库地址）
       - name: Deploy Nightly Release (Main Branch)
         if: ${{ inputs.sign-and-notarize && github.repository == 'ahchei08/Wonderprint' && github.ref == 'refs/heads/main' }}
         uses: WebFreak001/deploy-nightly@v3.2.0
@@ -338,12 +387,13 @@ jobs:
           max_releases: 1
 
       - name: Deploy Profile Validator Nightly
-        if: ${{ inputs.sign-and-notarize && github.repository == 'OrcaSlicer/OrcaSlicer' && github.ref == 'refs/heads/main' && hashFiles('OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}_signed.dmg') != '' }}
+        if: ${{ inputs.sign-and-notarize && github.repository == 'ahchei08/Wonderprint' && github.ref == 'refs/heads/main' }}
         uses: WebFreak001/deploy-nightly@v3.2.0
         with:
-          upload_url: https://uploads.github.com/repos/OrcaSlicer/OrcaSlicer/releases/271695561/assets{?name,label}
+          upload_url: https://uploads.github.com/repos/ahchei08/Wonderprint/releases/271695561/assets{?name,label}
           release_id: 271695561
           asset_path: ${{ github.workspace }}/OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}_signed.dmg
           asset_name: OrcaSlicer_profile_validator_Mac_universal_nightly.dmg
           asset_content_type: application/octet-stream
           max_releases: 1
+          if-no-files-found: warn

@@ -340,6 +340,8 @@ void PrintHostSendDialog::init()
     wxString response;
     CheckBox* checkbox1      = new CheckBox(this, wxID_ANY);
     CheckBox* checkbox2      = new CheckBox(this, wxID_ANY);
+    wxChoice* m_choice[4];
+    int       customExtruderCount[4] = {0, 1, 2, 3};
     bool     PrinterStandby = HttpJsonClient::SendPostRequest(m_url, postData, "application/json", response, 1);
     if (PrinterStandby)
         PrinterStandby = response.Contains("standby");
@@ -389,12 +391,12 @@ void PrintHostSendDialog::init()
         }
         wxString      numChosen[4] = {"1", "2", "3", "4"};
         wxStaticText* filament[4];
-        // wxStaticText* text1[4];
-        wxChoice* m_choice[4];
-        // wxMenu*       m_popupMenu[4];
         for (int i = 0; i < 4; i++) {
-            if (filament_use_type[i] == 0)
+            if (filament_use_type[i] == 0) {
+                m_choice[i] = NULL;
                 continue;
+            }
+                
             wxString str_type = "   ";
             if (i < filament_type1.size()) {
                 if (filament_type1[i].length() > 4) {
@@ -412,7 +414,7 @@ void PrintHostSendDialog::init()
             m_choice[i]->SetMaxSize(wxSize(filament[i]->GetClientSize().x, -1));
             filament[i]->SetMinSize(wxSize(-1, m_choice[i]->GetClientSize().y));
             m_choice[i]->SetSelection(i);
-            m_choice[i]->Bind(wxEVT_CHOICE, [this, m_choice, i, hostprint](wxCommandEvent& e) {
+            /*m_choice[i]->Bind(wxEVT_CHOICE, [this, m_choice, i, hostprint](wxCommandEvent& e) {
                 int      sel = m_choice[i]->GetSelection();
                 wxString url     = wxString::Format(GCODE_API_URL, hostprint);
                 wxString postStr = wxString::Format(GCODE_SET_FILAMENT, i, sel, i, sel);
@@ -420,7 +422,7 @@ void PrintHostSendDialog::init()
                 HttpJsonClient::SendPostRequest(url, postStr, "application/json", response);
                 cout << postStr << endl;
                 cout << wxString::Format("%s:SAVE_VARIABLE:%d<-%d,%s\n", hostprint, i, sel, response);
-            });
+            });*/
             if (colors->values.size() > i) {
                 filament[i]->SetBackgroundColour(wxColour(colors->values[i]));
                 if (wxColour(colors->values[i]).Green() < 64)
@@ -528,8 +530,22 @@ void PrintHostSendDialog::init()
 
     if (post_actions.has(PrintHostPostUploadAction::StartPrint)) {
         auto* btn_print = add_button(wxID_YES, false, _L("Upload and Print"));
-        btn_print->Bind(wxEVT_BUTTON, [this, checkbox1, checkbox2, validate_path](wxCommandEvent&) {
+        btn_print->Bind(wxEVT_BUTTON, [this, checkbox1, checkbox2, validate_path, m_choice, hostprint](wxCommandEvent&) {
             if (validate_path(txt_filename->GetValue())) {
+
+                for (int i = 0; i < 4; i++)
+                {
+                    if (m_choice[i]) {
+                        int      sel = m_choice[i]->GetSelection();
+                        wxString url       = wxString::Format(GCODE_API_URL, hostprint);
+                        wxString postStr   = wxString::Format(GCODE_SET_FILAMENT, i, sel, i, sel);
+                        wxString response;
+                        HttpJsonClient::SendPostRequest(url, postStr, "application/json", response);
+                        cout << postStr << endl;
+                        cout << wxString::Format("%s:SAVE_VARIABLE:%d<-%d,%s\n", hostprint, i, sel, response);
+                    }
+                }
+
                 post_upload_action = PrintHostPostUploadAction::StartPrint;
                 if (checkbox1->GetValue())
                     bed_level = true;

@@ -450,7 +450,6 @@ void PhysicalPrinterDialog::update_printhost_buttons()
         m_printhost_logout_btn->Show(host->is_logged_in());
         m_printhost_test_btn->SetLabel(host->is_cloud() ? _L("Login/Test") : _L("Test"));
         if (!m_config->opt_string("print_host").empty()) {
-
             Preset& sel_preset = m_presets->get_selected_preset();
             if (sel_preset.is_system) {
                 m_preset_name = sel_preset.name + " - (" + m_config->opt_string("print_host") + ")";
