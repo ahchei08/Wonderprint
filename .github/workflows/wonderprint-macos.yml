@@ -20,180 +20,151 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check_mac_cache:
-    name: Check Mac Dependencies Cache
+  check_cache: # determines if there is a cache and outputs variables used in caching process
+    name: Check Cache
     runs-on: macos-14
     outputs:
       cache-key: ${{ steps.set_outputs.outputs.cache-key }}
       cache-path: ${{ steps.set_outputs.outputs.cache-path }}
       valid-cache: ${{ steps.cache_deps.outputs.cache-hit }}
     steps:
-      - name: Checkout Code (with LFS)
+      - name: Checkout
         uses: actions/checkout@v5
         with:
           lfs: 'true'
-          sparse-checkout-cone-mode: false
-
-      - name: Set Mac Cache Variables
+        
+      - name: set outputs
         id: set_outputs
         env:
-          dep-folder-name: ''  # MacOS uses empty folder name per build_check_cache.yml
+          dep-folder-name: '' #${{ inputs.os != 'macos-14' && '/OrcaSlicer_dep' || '' }}
+          #output-cmd: ${{ inputs.os == 'windows-latest' && '$env:GITHUB_OUTPUT' || '"$GITHUB_OUTPUT"'}}
         run: |
-          CACHE_KEY="macos-14-cache-orcaslicer_deps-build-${{ hashFiles('deps/**') }}"
-          CACHE_PATH="${{ github.workspace }}/deps/build${{ env.dep-folder-name }}"
-          echo "cache-key=$CACHE_KEY" >> $GITHUB_OUTPUT
-          echo "cache-path=$CACHE_PATH" >> $GITHUB_OUTPUT
-          echo "CACHE_KEY=$CACHE_KEY" >> $GITHUB_ENV
-          echo "CACHE_PATH=$CACHE_PATH" >> $GITHUB_ENV
-
-      - name: Load Dependencies Cache (Lookup Only)
+          echo cache-key=macos-14-cache-orcaslicer_deps-build-${{ hashFiles('deps/**') }} >> ${{ env.output-cmd }}
+          echo cache-path=${{ github.workspace }}/deps/build${{ env.dep-folder-name }} >> ${{ env.output-cmd }}
+            
+      - name: load cache
         id: cache_deps
         uses: actions/cache@v4
         with:
           path: ${{ steps.set_outputs.outputs.cache-path }}
           key: ${{ steps.set_outputs.outputs.cache-key }}
           lookup-only: true
-
-  build_mac_deps:
-    name: Build Mac Dependencies
-    needs: [check_mac_cache]
+  build_deps: # call next step
+    name: Build Deps
+    needs: [check_cache]
+    with:
+      cache-key: ${{ needs.check_cache.outputs.cache-key }}
+      cache-path: ${{ needs.check_cache.outputs.cache-path }}
+      valid-cache: ${{ needs.check_cache.outputs.valid-cache == 'true' }}
+      os: macos-14
+      arch: ${{ inputs.arch }}
+      build-deps-only: ${{ inputs.build-deps-only }}
+      force-build: ${{ inputs.force-build }}
+    secrets: inherit
+    if: ${{ !cancelled() && (inputs.build-deps-only || inputs.force-build || inputs.valid-cache != true) }}
     runs-on: macos-14
-    if: ${{ !cancelled() && (inputs.build-deps-only || needs.check_mac_cache.outputs.valid-cache != 'true' || inputs.force-build) }}
     env:
-      date: ${{ github.sha }}
+      date:
     steps:
-      - name: Checkout Full Code (with LFS)
+
+      # Setup the environment
+      - name: Checkout
         uses: actions/checkout@v5
         with:
           lfs: 'true'
 
-      - name: Restore Dependencies Cache
+      - name: load cached deps
         uses: actions/cache@v4
         with:
-          path: ${{ needs.check_mac_cache.outputs.cache-path }}
-          key: ${{ needs.check_mac_cache.outputs.cache-key }}
+          path: ${{ inputs.cache-path }}
+          key: ${{ inputs.cache-key }}
 
-      - name: Install CMake 3.28.x
-        uses: lukka/get-cmake@latest
+      - uses: lukka/get-cmake@latest
         with:
-          cmakeVersion: "~3.28.0"
+          cmakeVersion: "~3.28.0"  # use most recent 3.28.x version
 
-      - name: Install Mac Dependency Tools (brew)
-        run: |
-          brew install automake texinfo libtool
-          brew list
-          brew uninstall --ignore-dependencies zstd
+      - name: Get the date on Ubuntu and macOS
+        #if: inputs.os != 'windows-latest'
+        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_ENV
+        shell: bash
 
-      - name: Build Mac Dependencies universal
+      - name: Build on Mac ${{ inputs.arch }}
+        #if: inputs.os == 'macos-14'
         working-directory: ${{ github.workspace }}
         run: |
-          ./build_release_macos.sh -dx -a universal -t 10.15 -1
-          for arch in arm64 x86_64; do
-            (cd "${{ github.workspace }}/deps/build/${arch}" && \
-            find . -mindepth 1 -maxdepth 1 ! -name 'OrcaSlicer_dep' -exec rm -rf {} +)
-          done
-          brew install zstd
-
-      - name: Save Dependencies Cache (Update New Build)
-        uses: actions/cache@v4
-        if: ${{ !cancelled() && !inputs.build-deps-only && needs.check_mac_cache.outputs.valid-cache != 'true' }}
-        with:
-          path: ${{ needs.check_mac_cache.outputs.cache-path }}
-          key: ${{ needs.check_mac_cache.outputs.cache-key }}
-
-      - name: Exit if Only Build Dependencies
-        if: ${{ inputs.build-deps-only }}
-        run: exit 0
-
-  build_mac_main:
-    name: Build & Package Mac (universal)
-    needs: [check_mac_cache, build_mac_deps]
+            brew install automake texinfo libtool
+            brew list
+            brew uninstall --ignore-dependencies zstd
+            ./build_release_macos.sh -dx -a universal -t 10.15 -1
+            for arch in arm64 x86_64; do
+                (cd "${{ github.workspace }}/deps/build/${arch}" && \
+                find . -mindepth 1 -maxdepth 1 ! -name 'OrcaSlicer_dep' -exec rm -rf {} +)
+            done
+            brew install zstd
+            
+  build_orca:
+    name: Build OrcaSlicer
     runs-on: macos-14
-    if: ${{ !cancelled() && !inputs.build-deps-only }}
     env:
-      ver: ${{ github.sha }}-nightly
-      date: ${{ github.sha }}
-      BUILD_DIR: ${{ github.workspace }}/build/universal
-      KEYCHAIN_PWD: "12345678"
-      DEPS_DIR: ${{ github.workspace }}/deps/build/OrcaSlicer_dep
+      date:
+      ver:
+      ver_pure:
       ORCA_UPDATER_SIG_KEY: ${{ secrets.ORCA_UPDATER_SIG_KEY }}
+
     steps:
-      - name: Checkout Code (for main build)
+      - name: Checkout
         uses: actions/checkout@v5
         with:
           lfs: 'true'
-          fetch-depth: 1
 
-      - name: Restore Dependencies Cache for Main Build
-        id: restore_main_cache
+      - name: load cached deps
         uses: actions/cache@v4
         with:
-          path: ${{ env.DEPS_DIR }}
-          key: ${{ needs.check_mac_cache.outputs.cache-key }}
-          fail-on-cache-miss: false
+          path: ${{ inputs.cache-path }}
+          key: ${{ inputs.cache-key }}
+          fail-on-cache-miss: true
 
-      - name: Print Cache Hit Status
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~3.28.0"  # use most recent 3.28.x version
+          
+      - name: Get the version and date on Ubuntu and macOS
+        #if: inputs.os != 'windows-latest'
         run: |
-          if [ "${{ steps.restore_main_cache.outputs.cache-hit }}" == "true" ]; then
-            echo "✅ 依赖缓存恢复成功，路径：${{ env.DEPS_DIR }}"
+          ver_pure=$(grep 'set(SoftFever_VERSION' version.inc | cut -d '"' -f2)
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            ver="PR-${{ github.event.number }}"
+            git_commit_hash="${{ github.event.pull_request.head.sha }}"
           else
-            echo "⚠️  依赖缓存未命中，将使用本地构建产物"
+            ver=V$ver_pure
+            git_commit_hash=""
           fi
+          echo "ver=$ver" >> $GITHUB_ENV
+          echo "ver_pure=$ver_pure" >> $GITHUB_ENV
+          echo "date=$(date +'%Y%m%d')" >> $GITHUB_ENV
+          echo "git_commit_hash=$git_commit_hash" >> $GITHUB_ENV
+        shell: bash
+#   Mac
+      - name: Install tools mac
+        #if: inputs.os == 'macos-14'
+        run: |
+          brew install libtool
+          brew list
+          mkdir -p ${{ github.workspace }}/deps/build
 
-      - name: Free Disk Space & Install Tools
+      - name: Free disk space
+        #if: inputs.os == 'macos-14'
         run: |
           df -hI /dev/disk3s1s1
           sudo find /Applications -maxdepth 1 -type d -name "Xcode_*.app" ! -name "Xcode_15.4.app" -exec rm -rf {} +
           sudo rm -rf ~/Library/Developer/CoreSimulator/Caches/*
           df -hI /dev/disk3s1s1
-          brew install libtool zstd
-          brew list
-          mkdir -p ${{ env.BUILD_DIR }}
 
-      - name: Get version and date
-        run: |
-          ver_pure=$(grep 'set(SoftFever_VERSION' version.inc | cut -d '"' -f2)
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            ver="PR-${{ github.event.number }}"
-          else
-            ver=V$ver_pure
-          fi
-          echo "ver=$ver" >> $GITHUB_ENV
-          echo "ver_pure=$ver_pure" >> $GITHUB_ENV
-          echo "date=$(date +'%Y%m%d')" >> $GITHUB_ENV
-        shell: bash
-
-      - name: Build OrcaSlicer Main Program
+      - name: Build slicer mac
+        #if: inputs.os == 'macos-14'
         working-directory: ${{ github.workspace }}
         run: |
-          export BOOST_ROOT="${{ env.DEPS_DIR }}"
-          export Boost_DIR="${{ env.DEPS_DIR }}/lib/cmake/Boost-1.84.0"
-          export CMAKE_PREFIX_PATH="${{ env.DEPS_DIR }}:${CMAKE_PREFIX_PATH}"
           ./build_release_macos.sh -s -n -x -a universal -t 10.15 -1
-          
-          TARGET_APP_PATH="${{ env.BUILD_DIR }}/OrcaSlicer/OrcaSlicer.app"
-          TARGET_EXEC_PATH="${TARGET_APP_PATH}/Contents/MacOS/OrcaSlicer"
-          
-          if [ -f "$TARGET_EXEC_PATH" ]; then
-            echo "=== 验证主程序架构 ==="
-            lipo -info "$TARGET_EXEC_PATH"
-            if ! lipo -info "$TARGET_EXEC_PATH" | grep -q "arm64 x86_64"; then
-              echo "错误：主程序不是 universal 架构！"
-              exit 1
-            fi
-          else
-            echo "错误：未找到可执行文件：$TARGET_EXEC_PATH"
-            exit 1
-          fi
-
-      - name: Import Provisioning Profile
-        if: ${{ inputs.sign-and-notarize }}
-        env:
-          PROFILE_BASE64: ${{ secrets.MACOS_PROVISION_PROFILE_BASE64 }}
-        run: |
-          PROFILE_DIR=~/Library/MobileDevice/Provisioning\ Profiles
-          mkdir -p $PROFILE_DIR
-          echo "$PROFILE_BASE64" | base64 --decode > $PROFILE_DIR/orcaslicer_profile.provisionprofile
 
       - name: Sign & Notarize App
         if: ${{ inputs.sign-and-notarize }}
