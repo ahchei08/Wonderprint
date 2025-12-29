@@ -17,8 +17,9 @@ on:
         type: boolean
         default: true
 
+# 优化1：强化 concurrency 配置，解决缓存竞争问题（添加 github.sha 确保唯一）
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.sha }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -41,9 +42,13 @@ jobs:
         id: set_outputs
         run: |
           # 优化1：缓存键与原版格式保持一致，确保哈希精准
-          echo "cache-key=macos-14-cache-orcaslicer_deps-build-${{ hashFiles('deps/**') }}" >> $GITHUB_OUTPUT
-          # 优化2：缓存路径精准指向 OrcaSlicer_dep（依赖产物核心目录），而非整个 build
-          echo "cache-path=${{ github.workspace }}/deps/build/OrcaSlicer_dep" >> $GITHUB_OUTPUT
+          CACHE_KEY="macos-14-cache-orcaslicer_deps-build-${{ hashFiles('deps/**') }}"
+          CACHE_PATH="${{ github.workspace }}/deps/build/OrcaSlicer_dep"
+          echo "cache-key=$CACHE_KEY" >> $GITHUB_OUTPUT
+          echo "cache-path=$CACHE_PATH" >> $GITHUB_OUTPUT
+          # 额外：导出为环境变量，方便后续步骤复用（可选，增强可维护性）
+          echo "CACHE_KEY=$CACHE_KEY" >> $GITHUB_ENV
+          echo "CACHE_PATH=$CACHE_PATH" >> $GITHUB_ENV
 
       - name: Load Dependencies Cache (Lookup Only)
         id: cache_deps
@@ -102,9 +107,10 @@ jobs:
           cp -R ${{ github.workspace }}/deps/build/x86_64/OrcaSlicer_dep/* ${{ github.workspace }}/deps/build/OrcaSlicer_dep/ 2>/dev/null || true
           brew install zstd
 
+      # 优化2：增强缓存保存条件，解决缓存竞争，仅在必要时保存
       - name: Save Dependencies Cache (Update New Build)
         uses: actions/cache@v4
-        if: ${{ !inputs.build-deps-only && needs.check_mac_cache.outputs.valid-cache != 'true' }}
+        if: ${{ !cancelled() && !inputs.build-deps-only && needs.check_mac_cache.outputs.valid-cache != 'true' && github.event_name == 'workflow_dispatch' }}
         with:
           path: ${{ needs.check_mac_cache.outputs.cache-path }}
           key: ${{ needs.check_mac_cache.outputs.cache-key }}
@@ -116,7 +122,8 @@ jobs:
   # 3. 主程序构建（核心优化：补全依赖路径传递、构建上下文、容错性增强）
   build_mac_main:
     name: Build & Package Mac (universal)
-    needs: [build_mac_deps]
+    # 核心修复：添加 check_mac_cache 依赖，获取缓存键输出参数
+    needs: [check_mac_cache, build_mac_deps]
     runs-on: macos-14
     if: ${{ !cancelled() && !inputs.build-deps-only }}
     env:
@@ -126,16 +133,33 @@ jobs:
       # 新增：依赖产物目录环境变量，统一传递给构建脚本
       DEPS_DIR: ${{ github.workspace }}/deps/build/OrcaSlicer_dep
     steps:
+      # 优化3：调整 checkout 配置，减少不必要的目录清空，提升性能
       - name: Checkout Code (for main build)
         uses: actions/checkout@v5
         with:
           lfs: 'true'
+          fetch-depth: 1 # 只拉取最新提交，减少文件操作时间，避免冗余目录清空
 
+      # 核心修复：补充完整缓存配置，添加 key 参数（复用 check_mac_cache 的输出）
       - name: Restore Dependencies Cache for Main Build
+        id: restore_main_cache
         uses: actions/cache@v4
         with:
           path: ${{ env.DEPS_DIR }}
-          key: ${{ needs.check_mac_cache.outputs.cache-key }}
+          key: ${{ needs.check_mac_cache.outputs.cache-key }} # 复用上游缓存键，解决 missing key 报错
+          enableCrossOsArchive: false
+          fail-on-cache-miss: false
+          lookup-only: false
+          save-always: false
+
+      # 新增：缓存命中日志输出，方便排查缓存是否正常恢复
+      - name: Print Cache Hit Status
+        run: |
+          if [ "${{ steps.restore_main_cache.outputs.cache-hit }}" == "true" ]; then
+            echo "✅ 依赖缓存恢复成功，路径：${{ env.DEPS_DIR }}"
+          else
+            echo "⚠️  依赖缓存未命中，将使用本地构建产物"
+          fi
 
       - name: Free Disk Space & Install Tools
         run: |
@@ -374,7 +398,7 @@ jobs:
           path: ${{ github.workspace }}/OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}_test.dmg
           if-no-files-found: warn
           
-      # 部署逻辑（保留原有逻辑，修正仓库地址）
+      # 部署逻辑
       - name: Deploy Nightly Release (Main Branch)
         if: ${{ inputs.sign-and-notarize && github.repository == 'ahchei08/Wonderprint' && github.ref == 'refs/heads/main' }}
         uses: WebFreak001/deploy-nightly@v3.2.0

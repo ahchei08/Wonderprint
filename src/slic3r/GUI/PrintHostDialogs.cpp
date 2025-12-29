@@ -340,8 +340,7 @@ void PrintHostSendDialog::init()
     wxString response;
     CheckBox* checkbox1      = new CheckBox(this, wxID_ANY);
     CheckBox* checkbox2      = new CheckBox(this, wxID_ANY);
-    wxChoice* m_choice[4];
-    int       customExtruderCount[4] = {0, 1, 2, 3};
+    wxChoice* m_choice[4]    = {};
     bool     PrinterStandby = HttpJsonClient::SendPostRequest(m_url, postData, "application/json", response, 1);
     if (PrinterStandby)
         PrinterStandby = response.Contains("standby");
@@ -393,7 +392,7 @@ void PrintHostSendDialog::init()
         wxStaticText* filament[4];
         for (int i = 0; i < 4; i++) {
             if (filament_use_type[i] == 0) {
-                m_choice[i] = NULL;
+                m_choice[i] = nullptr;
                 continue;
             }
                 
