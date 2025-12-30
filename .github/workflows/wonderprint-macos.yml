@@ -186,23 +186,57 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           TEAM_ID: "752C3QMAKU"
-          KEYCHAIN_PWD: "12345678"
+          KEYCHAIN_PWD: ${{ secrets.MAC_P12_CERT_PASSWORD }}
         run: |
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode --output $CERTIFICATE_PATH
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 -d -o $CERTIFICATE_PATH
+          echo "=== 校验 .p12 证书文件大小 ==="
+          CERT_FILE_SIZE=$(ls -l $CERTIFICATE_PATH | awk '{print $5}')
+          echo "解码后的 .p12 证书文件大小：$CERT_FILE_SIZE 字节"
+          if [ $CERT_FILE_SIZE -lt 1024 ]; then
+            echo "错误：.p12 证书文件大小过小（小于 1KB），说明 Base64 编码损坏或不完整！"
+            exit 1
+          fi
           security create-keychain -p ${{ env.KEYCHAIN_PWD }} $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security set-keychain-settings -lut 3600 $KEYCHAIN_PATH
           security unlock-keychain -p ${{ env.KEYCHAIN_PWD }} $KEYCHAIN_PATH
           security import $CERTIFICATE_PATH -P $P12_PASSWORD -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ${{ env.KEYCHAIN_PWD }} $KEYCHAIN_PATH
-          CERTIFICATE_ID=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep "Developer ID Application" | awk '{print $2}' | head -n1)
-          echo "使用的证书ID：$CERTIFICATE_ID"
+          echo "=== 导入 .p12 证书到自定义钥匙串 ==="
+          security import $CERTIFICATE_PATH \
+            -P $P12_PASSWORD \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k $KEYCHAIN_PATH \
+            -T /usr/bin/codesign \
+            -T /usr/bin/xcrun \
+            -T /usr/bin/security
+          echo "证书导入成功"
+          echo "=== 列出所有可用的签名证书 ==="
+          security find-identity -v -p codesigning $KEYCHAIN_PATH
+          # 5.1 提取第一个有效十六进制证书 ID（忽略证书名称，只取有效 ID）
+          CERTIFICATE_ID=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | awk '/[0-9A-F]{40}/ {print $2}' | head -n 1 | sed 's/[^A-F0-9]//g')
+            # 5.2 兜底提取（兼容不同输出格式）
           if [ -z "$CERTIFICATE_ID" ]; then
-            echo "错误：未找到有效的签名证书！"
+            CERTIFICATE_ID=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | awk '{print $2}' | head -n 1 | sed 's/[^A-F0-9]//g')
+          fi
+            
+            # 6. 验证证书 ID 是否有效（不再校验类型，本地已验证证书有效）
+          echo "使用的证书 ID：$CERTIFICATE_ID"
+          if [ -z "$CERTIFICATE_ID" ] || [ ${#CERTIFICATE_ID} -ne 40 ]; then
+            echo "错误：未提取到有效的 40 位十六进制证书 ID！"
             exit 1
           fi
+          echo "证书 ID 提取成功，开始签名流程"
+          #CERTIFICATE_ID=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep "Developer ID Application" | awk '{print $2}' | head -n1)
+          #echo "使用的证书ID：$CERTIFICATE_ID"
+          #if [ -z "$CERTIFICATE_ID" ]; then
+          #  echo "错误：未找到有效的签名证书！"
+          #  exit 1
+          #fi
           TARGET_APP="${{ env.BUILD_DIR }}/OrcaSlicer/OrcaSlicer.app"
           DMG_SRC="${{ env.BUILD_DIR }}/Wonderprint-Orca_dmg"
           DMG_NAME="${{ env.BUILD_DIR }}/Wonderprint-Orca_Mac_${{ env.ver }}_signed.dmg"
