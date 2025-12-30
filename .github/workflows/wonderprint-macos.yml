@@ -32,16 +32,17 @@ jobs:
         uses: actions/checkout@v5
         with:
           lfs: 'true'
+        #
         
       - name: set outputs
         id: set_outputs
         env:
           dep-folder-name: '' #${{ inputs.os != 'macos-14' && '/OrcaSlicer_dep' || '' }}
-          #output-cmd: ${{ inputs.os == 'windows-latest' && '$env:GITHUB_OUTPUT' || '"$GITHUB_OUTPUT"'}}
+          #output-cmd: ${{'$env:GITHUB_OUTPUT' || '"$GITHUB_OUTPUT"'}}
         run: |
-          echo cache-key=macos-14-cache-orcaslicer_deps-build-${{ hashFiles('deps/**') }} >> ${{ env.output-cmd }}
-          echo cache-path=${{ github.workspace }}/deps/build${{ env.dep-folder-name }} >> ${{ env.output-cmd }}
-            
+          echo cache-key=macos-14-cache-orcaslicer_deps-build-${{ hashFiles('deps/**') }} >> $GITHUB_OUTPUT
+          echo cache-path=${{ github.workspace }}/deps/build${{ env.dep-folder-name }} >> $GITHUB_OUTPUT
+         
       - name: load cache
         id: cache_deps
         uses: actions/cache@v4
@@ -49,24 +50,16 @@ jobs:
           path: ${{ steps.set_outputs.outputs.cache-path }}
           key: ${{ steps.set_outputs.outputs.cache-key }}
           lookup-only: true
+
   build_deps: # call next step
     name: Build Deps
     needs: [check_cache]
-    with:
-      cache-key: ${{ needs.check_cache.outputs.cache-key }}
-      cache-path: ${{ needs.check_cache.outputs.cache-path }}
-      valid-cache: ${{ needs.check_cache.outputs.valid-cache == 'true' }}
-      os: macos-14
-      arch: ${{ inputs.arch }}
-      build-deps-only: ${{ inputs.build-deps-only }}
-      force-build: ${{ inputs.force-build }}
-    secrets: inherit
-    if: ${{ !cancelled() && (inputs.build-deps-only || inputs.force-build || inputs.valid-cache != true) }}
     runs-on: macos-14
+    secrets: inherit
+    if: ${{ !cancelled() && (inputs.build-deps-only || needs.check_cache.outputs.valid-cache != 'true' ) }}
     env:
       date:
     steps:
-
       # Setup the environment
       - name: Checkout
         uses: actions/checkout@v5
@@ -76,8 +69,8 @@ jobs:
       - name: load cached deps
         uses: actions/cache@v4
         with:
-          path: ${{ inputs.cache-path }}
-          key: ${{ inputs.cache-key }}
+          path: ${{ needs.check_cache.outputs.cache-path }}
+          key: ${{ needs.check_cache.outputs.cache-key }}
 
       - uses: lukka/get-cmake@latest
         with:
@@ -88,7 +81,7 @@ jobs:
         run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_ENV
         shell: bash
 
-      - name: Build on Mac ${{ inputs.arch }}
+      - name: Build on Mac universal
         #if: inputs.os == 'macos-14'
         working-directory: ${{ github.workspace }}
         run: |
@@ -104,12 +97,15 @@ jobs:
             
   build_orca:
     name: Build OrcaSlicer
+    needs: [check_cache, build_deps]
     runs-on: macos-14
+    if: ${{ !cancelled() && !inputs.build-deps-only }}
     env:
       date:
       ver:
       ver_pure:
       ORCA_UPDATER_SIG_KEY: ${{ secrets.ORCA_UPDATER_SIG_KEY }}
+      BUILD_DIR: ${{ github.workspace }}/build/universal 
 
     steps:
       - name: Checkout
@@ -120,8 +116,8 @@ jobs:
       - name: load cached deps
         uses: actions/cache@v4
         with:
-          path: ${{ inputs.cache-path }}
-          key: ${{ inputs.cache-key }}
+          path: ${{ needs.check_cache.outputs.cache-path }}
+          key: ${{ needs.check_cache.outputs.cache-key }}
           fail-on-cache-miss: true
 
       - uses: lukka/get-cmake@latest
@@ -129,7 +125,6 @@ jobs:
           cmakeVersion: "~3.28.0"  # use most recent 3.28.x version
           
       - name: Get the version and date on Ubuntu and macOS
-        #if: inputs.os != 'windows-latest'
         run: |
           ver_pure=$(grep 'set(SoftFever_VERSION' version.inc | cut -d '"' -f2)
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
@@ -144,16 +139,14 @@ jobs:
           echo "date=$(date +'%Y%m%d')" >> $GITHUB_ENV
           echo "git_commit_hash=$git_commit_hash" >> $GITHUB_ENV
         shell: bash
-#   Mac
+
       - name: Install tools mac
-        #if: inputs.os == 'macos-14'
         run: |
           brew install libtool
           brew list
           mkdir -p ${{ github.workspace }}/deps/build
 
       - name: Free disk space
-        #if: inputs.os == 'macos-14'
         run: |
           df -hI /dev/disk3s1s1
           sudo find /Applications -maxdepth 1 -type d -name "Xcode_*.app" ! -name "Xcode_15.4.app" -exec rm -rf {} +
@@ -161,7 +154,6 @@ jobs:
           df -hI /dev/disk3s1s1
 
       - name: Build slicer mac
-        #if: inputs.os == 'macos-14'
         working-directory: ${{ github.workspace }}
         run: |
           ./build_release_macos.sh -s -n -x -a universal -t 10.15 -1
@@ -174,6 +166,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           TEAM_ID: "752C3QMAKU"
+          KEYCHAIN_PWD: "12345678"
         run: |
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
@@ -209,7 +202,7 @@ jobs:
           mkdir -p $DMG_SRC && rm -rf $DMG_SRC/*
           cp -R $TARGET_APP $DMG_SRC/
           ln -sfn /Applications $DMG_SRC/Applications
-          DMG_NAME="OrcaSlicer_Mac_universal_${{ env.ver }}_signed.dmg"
+          DMG_NAME="${{ env.BUILD_DIR }}/OrcaSlicer_Mac_universal_${{ env.ver }}_signed.dmg"
           hdiutil create -volname "OrcaSlicer" -srcfolder $DMG_SRC -ov -format UDZO $DMG_NAME
           codesign --deep --force --verbose --options runtime --timestamp \
             --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements \
@@ -263,7 +256,7 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: OrcaSlicer_Mac_universal_${{ env.ver }}_signed
-          path: ${{ github.workspace }}/OrcaSlicer_Mac_universal_${{ env.ver }}_signed.dmg
+          path: ${{ env.BUILD_DIR }}/OrcaSlicer_Mac_universal_${{ env.ver }}_signed.dmg
 
       - name: Upload Test DMG (Without Notarization)
         if: ${{ inputs.create-dmg-only }}
