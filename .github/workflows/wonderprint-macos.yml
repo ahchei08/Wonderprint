@@ -55,7 +55,6 @@ jobs:
     name: Build Deps
     needs: [check_cache]
     runs-on: macos-14
-    secrets: inherit
     if: ${{ !cancelled() && (inputs.build-deps-only || needs.check_cache.outputs.valid-cache != 'true' ) }}
     env:
       date:
