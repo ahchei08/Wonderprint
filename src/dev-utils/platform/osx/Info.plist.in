@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
   <key>CFBundleExecutable</key>
-  <string>@SLIC3R_APP_KEY@</string>
+  <string>@SLIC3R_APP_NAME@</string>
   <key>CFBundleGetInfoString</key>
   <string>@SLIC3R_APP_NAME@ Copyright(C) 2021-2023 Lunkuo All Rights Reserved</string>
   <key>CFBundleIconFile</key>
   <string>images/OrcaSlicer.icns</string>
   <key>CFBundleName</key>
-  <string>@SLIC3R_APP_KEY@</string>
+  <string>@SLIC3R_APP_NAME@</string>
   <key>CFBundleShortVersionString</key>
-  <string>@SLIC3R_APP_NAME@ @SLIC3R_BUILD_ID@</string>
+  <string>@SLIC3R_BUILD_ID@</string>
   <key>CFBundleIdentifier</key>
-  <string>com.fanqie.printer/</string>
+  <string>com.fanqie.printer</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundlePackageType</key>
@@ -22,9 +22,9 @@
   <string>????</string>
   <key>CFBundleVersion</key>
   <string>@SLIC3R_BUILD_ID@</string>
-  <key>CFBundleURLTypes</key>
-  <key>ATSApplicationFontsPath</key>
+  <key>ATSApplicationFontsPath</key> <!-- 修复：调整位置，保证key和value完整配对 -->
   <string>fonts/</string>
+  <key>CFBundleURLTypes</key> <!-- 修复：XML结构规整，key后直接跟对应array -->
   <array>
     <dict>
       <key>CFBundleURLName</key>
@@ -50,7 +50,7 @@
       <string>STL</string>
       <key>CFBundleTypeRole</key>
       <string>Viewer</string>
-      <key>LISsAppleDefaultForType</key>
+      <key>LSIsAppleDefaultForType</key> <!-- 修复：拼写错误LISs→LSIs -->
       <true/>
       <key>LSHandlerRank</key>
       <string>Alternate</string>
@@ -67,7 +67,7 @@
       <string>STL</string>
       <key>CFBundleTypeRole</key>
       <string>Viewer</string>
-      <key>LISsAppleDefaultForType</key>
+      <key>LSIsAppleDefaultForType</key> <!-- 修复：拼写错误LISs→LSIs -->
       <true/>
       <key>LSHandlerRank</key>
       <string>Alternate</string>
@@ -84,7 +84,7 @@
       <string>AMF</string>
       <key>CFBundleTypeRole</key>
       <string>Viewer</string>
-      <key>LISsAppleDefaultForType</key>
+      <key>LSIsAppleDefaultForType</key> <!-- 修复：拼写错误LISs→LSIs -->
       <true/>
       <key>LSHandlerRank</key>
       <string>Alternate</string>
@@ -101,7 +101,7 @@
       <string>3MF</string>
       <key>CFBundleTypeRole</key>
       <string>Viewer</string>
-      <key>LISsAppleDefaultForType</key>
+      <key>LSIsAppleDefaultForType</key> <!-- 修复：拼写错误LISs→LSIs -->
       <true/>
       <key>LSHandlerRank</key>
       <string>Alternate</string>
@@ -118,7 +118,7 @@
       <string>GCODE</string>
       <key>CFBundleTypeRole</key>
       <string>Viewer</string>
-      <key>LISsAppleDefaultForType</key>
+      <key>LSIsAppleDefaultForType</key> <!-- 修复：拼写错误LISs→LSIs -->
       <true/>
       <key>LSHandlerRank</key>
       <string>Alternate</string>
