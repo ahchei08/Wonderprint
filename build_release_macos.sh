@@ -186,18 +186,18 @@ function build_slicer() {
         echo "Fix macOS app package..."
         (
             cd "$PROJECT_BUILD_DIR"
-            mkdir -p Wonderprint-Orca 
-            cd Wonderprint-Orca 
+            mkdir -p Wonderprint-Orca
+            cd Wonderprint-Orca
             # remove previously built app
-            rm -rf ./Wonderprint-Orca .app
+            rm -rf ./Wonderprint-Orca.app
             # fully copy newly built app
-            cp -LpR "../src$BUILD_DIR_CONFIG_SUBDIR/Wonderprint-Orca .app" ./Wonderprint-Orca .app
+            cp -LpR "../src$BUILD_DIR_CONFIG_SUBDIR/Wonderprint-Orca.app" ./Wonderprint-Orca.app
             # fix resources
             #resources_path=$(readlink -f ./OrcaSlicer.app/Contents/Resources)
             #rm -rf ./OrcaSlicer.app/Contents/Resources
             #cp -LRp "$resources_path" ./OrcaSlicer.app/Contents/Resources
             # delete .DS_Store file
-            find ./Wonderprint-Orca .app/ -name '.DS_Store' -delete
+            find ./Wonderprint-Orca.app/ -name '.DS_Store' -delete
             
             # Copy OrcaSlicer_profile_validator.app if it exists
             if [ -f "../src$BUILD_DIR_CONFIG_SUBDIR/OrcaSlicer_profile_validator.app/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
