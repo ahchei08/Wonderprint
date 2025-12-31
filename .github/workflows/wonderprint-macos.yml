@@ -162,7 +162,7 @@ jobs:
       - name: Create DMG (Without Notarization)
         if: ${{ inputs.create-dmg-only && !inputs.sign-and-notarize }}
         run: |
-          TARGET_APP="${{ env.BUILD_DIR }}/OrcaSlicer/OrcaSlicer.app"
+          TARGET_APP="${{ env.BUILD_DIR }}/Wonderprint-Orca/Wonderprint-Orca.app"
           DMG_SRC="${{ env.BUILD_DIR }}/Wonderprint-Orca_dmg"
           mkdir -p $DMG_SRC && rm -rf $DMG_SRC/*
           cp -R $TARGET_APP $DMG_SRC/
@@ -217,7 +217,7 @@ jobs:
             echo "错误：未找到有效的签名证书！"
             exit 1
           fi
-          TARGET_APP="${{ env.BUILD_DIR }}/OrcaSlicer/OrcaSlicer.app"
+          TARGET_APP="${{ env.BUILD_DIR }}/Wonderprint-Orca/Wonderprint-Orca.app"
           DMG_SRC="${{ env.BUILD_DIR }}/Wonderprint-Orca_dmg"
           DMG_NAME="${{ env.BUILD_DIR }}/Wonderprint-Orca_Mac_${{ env.ver }}_signed.dmg"
           codesign --deep --force --verbose --options runtime --timestamp \
