@@ -111,7 +111,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/dev-utils/platform/osx/Info.plist.in 
 if (WIN32)
     add_library(OrcaSlicer SHARED OrcaSlicer.cpp OrcaSlicer.hpp)
 else ()
-    add_executable(OrcaSlicer OrcaSlicer.cpp OrcaSlicer.hpp)
+    add_executable(Wonderprint-Orca OrcaSlicer.cpp OrcaSlicer.hpp)
 endif ()
 
 if (MINGW)
@@ -125,14 +125,17 @@ if (NOT WIN32 AND NOT APPLE)
     set(SLIC3R_APP_CMD "orca-slicer")
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/dev-utils/platform/unix/build_linux_image.sh.in ${CMAKE_CURRENT_BINARY_DIR}/build_linux_image.sh USE_SOURCE_PERMISSIONS @ONLY)
 endif ()
-
-target_link_libraries(OrcaSlicer libslic3r cereal::cereal)
+if (WIN32)
+	target_link_libraries(OrcaSlicer libslic3r cereal::cereal)
+else ()
+	target_link_libraries(Wonderprint-Orca libslic3r cereal::cereal)
+endif ()
 # target_include_directories(OrcaSlicer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/slic3r)
 if (APPLE)
 #    add_compile_options(-stdlib=libc++)
 #    add_definitions(-DBOOST_THREAD_DONT_USE_CHRONO -DBOOST_NO_CXX11_RVALUE_REFERENCES -DBOOST_THREAD_USES_MOVE)
     # -liconv: boost links to libiconv by default
-    target_link_libraries(OrcaSlicer "-liconv -framework IOKit" "-framework CoreFoundation" "-framework AVFoundation" "-framework AVKit" "-framework CoreMedia" "-framework VideoToolbox" -lc++)
+    target_link_libraries(Wonderprint-Orca "-liconv -framework IOKit" "-framework CoreFoundation" "-framework AVFoundation" "-framework AVKit" "-framework CoreMedia" "-framework VideoToolbox" -lc++)
 elseif (MSVC)
     # Manifest is provided through OrcaSlicer.rc, don't generate your own.
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO")
@@ -144,7 +147,11 @@ endif ()
 # Add the Slic3r GUI library, libcurl, OpenGL and GLU libraries.
 if (SLIC3R_GUI)
 #    target_link_libraries(OrcaSlicer ws2_32 uxtheme setupapi libslic3r_gui ${wxWidgets_LIBRARIES})
-target_link_libraries(OrcaSlicer libslic3r_gui)
+	if (WIN32)
+		target_link_libraries(OrcaSlicer libslic3r_gui)
+	else ()
+		target_link_libraries(Wonderprint-Orca libslic3r_gui)
+	endif ()
     if (MSVC)
         # Generate debug symbols even in release mode.
         target_link_options(OrcaSlicer PUBLIC "$<$<CONFIG:RELEASE>:/DEBUG>")
@@ -152,9 +159,9 @@ target_link_libraries(OrcaSlicer libslic3r_gui)
     elseif (MINGW)
         target_link_libraries(OrcaSlicer ws2_32 uxtheme setupapi)
     elseif (APPLE)
-        target_link_libraries(OrcaSlicer "-framework OpenGL")
+        target_link_libraries(Wonderprint-Orca "-framework OpenGL")
     else ()
-        target_link_libraries(OrcaSlicer -ldl)
+        target_link_libraries(Wonderprint-Orca  -ldl)
     endif ()
     #if (WIN32)
     #    find_library(PSAPI_LIB NAMES Psapi)
@@ -223,13 +230,13 @@ if (WIN32)
 else ()
     if (APPLE AND NOT CMAKE_MACOSX_BUNDLE)
         # On OSX, the name of the binary matches the name of the Application.
-        add_custom_command(TARGET OrcaSlicer POST_BUILD
-            COMMAND ln -sf OrcaSlicer orca-slicer
-            WORKING_DIRECTORY "$<TARGET_FILE_DIR:OrcaSlicer>"
+        add_custom_command(TARGET Wonderprint-Orca POST_BUILD
+            COMMAND ln -sf Wonderprint-Orca orca-slicer
+            WORKING_DIRECTORY "$<TARGET_FILE_DIR:Wonderprint-Orca>"
             VERBATIM)
     else ()
-        add_custom_command(TARGET OrcaSlicer POST_BUILD
-            WORKING_DIRECTORY "$<TARGET_FILE_DIR:OrcaSlicer>"
+        add_custom_command(TARGET Wonderprint-Orca POST_BUILD
+            WORKING_DIRECTORY "$<TARGET_FILE_DIR:Wonderprint-Orca>"
             VERBATIM)
     endif ()
     if (XCODE)
@@ -241,16 +248,16 @@ else ()
     endif ()
     if (CMAKE_MACOSX_BUNDLE)
         if (CMAKE_CONFIGURATION_TYPES)
-            set(BIN_RESOURCES_DIR "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/OrcaSlicer.app/Contents/Resources")
+            set(BIN_RESOURCES_DIR "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/Wonderprint-Orca.app/Contents/Resources")
         else()
-            set(BIN_RESOURCES_DIR "${CMAKE_CURRENT_BINARY_DIR}/OrcaSlicer.app/Contents/Resources")
+            set(BIN_RESOURCES_DIR "${CMAKE_CURRENT_BINARY_DIR}/Wonderprint-Orca.app/Contents/Resources")
         endif()
         set(MACOSX_BUNDLE_ICON_FILE Icon.icns)
-        set(MACOSX_BUNDLE_BUNDLE_NAME "OrcaSlicer")
+        set(MACOSX_BUNDLE_BUNDLE_NAME "Wonderprint-Orca")
         set(MACOSX_BUNDLE_SHORT_VERSION_STRING ${SoftFever_VERSION})
         set(MACOSX_BUNDLE_COPYRIGHT "Copyright(C) 2022-2026 Wonder Maker All Rights Reserved")
     endif()
-    add_custom_command(TARGET OrcaSlicer POST_BUILD
+    add_custom_command(TARGET Wonderprint-Orca POST_BUILD
         COMMAND ln -sfn "${SLIC3R_RESOURCES_DIR}" "${BIN_RESOURCES_DIR}"
         COMMENT "Symlinking the resources directory into the build tree"
         VERBATIM)
@@ -276,5 +283,5 @@ if (WIN32)
     endif ()
     install(FILES ${output_dlls_${build_type}} DESTINATION ".")
 else ()
-    install(TARGETS OrcaSlicer RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" BUNDLE DESTINATION ${CMAKE_INSTALL_BINDIR})
+    install(TARGETS Wonderprint-Orca RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" BUNDLE DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif ()
