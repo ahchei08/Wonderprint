@@ -132,10 +132,6 @@ else ()
 endif ()
 # target_include_directories(OrcaSlicer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/slic3r)
 if (APPLE)
-	set_target_properties(Wonderprint-Orca PROPERTIES 
-		MACOSX_BUNDLE YES
-		MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_BINARY_DIR}/src/info.plist"
-	)
 #    add_compile_options(-stdlib=libc++)
 #    add_definitions(-DBOOST_THREAD_DONT_USE_CHRONO -DBOOST_NO_CXX11_RVALUE_REFERENCES -DBOOST_THREAD_USES_MOVE)
     # -liconv: boost links to libiconv by default
@@ -232,6 +228,10 @@ if (WIN32)
 
 
 else ()
+	set_target_properties(Wonderprint-Orca PROPERTIES 
+		MACOSX_BUNDLE YES
+		MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_BINARY_DIR}/info.plist"
+	)
     if (APPLE AND NOT CMAKE_MACOSX_BUNDLE)
         # On OSX, the name of the binary matches the name of the Application.
         add_custom_command(TARGET Wonderprint-Orca POST_BUILD
