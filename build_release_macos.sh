@@ -233,7 +233,7 @@ function build_universal() {
     echo "Creating universal binary..."
     # PROJECT_BUILD_DIR="$PROJECT_DIR/build_Universal"
     mkdir -p "$PROJECT_BUILD_DIR/Wonderprint-Orca"
-    UNIVERSAL_APP="$PROJECT_BUILD_DIR/Wonderprint-Orc/Wonderprint-Orca.app"
+    UNIVERSAL_APP="$PROJECT_BUILD_DIR/Wonderprint-Orca/Wonderprint-Orca.app"
     rm -rf "$UNIVERSAL_APP"
     cp -R "$PROJECT_DIR/build/arm64/Wonderprint-Orca/Wonderprint-Orca.app" "$UNIVERSAL_APP"
     
