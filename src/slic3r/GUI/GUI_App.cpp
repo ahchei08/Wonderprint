@@ -2554,21 +2554,10 @@ bool GUI_App::on_init_inner()
         if (app_config->get("associate_gcode") == "true")
             associate_files(L"gcode");
 #endif // __WXMSW__
-
+        /* //ahchei
         preset_updater = new PresetUpdater();
         Bind(EVT_SLIC3R_VERSION_ONLINE, [this](const wxCommandEvent& evt) {
             if (this->plater_ != nullptr) {
-                // this->plater_->get_notification_manager()->push_notification(NotificationType::NewAppAvailable);
-                //BBS show msg box to download new version
-               /* wxString tips = wxString::Format(_L("Click to download new version in default browser: %s"), version_info.version_str);
-                DownloadDialog dialog(this->mainframe,
-                    tips,
-                    _L("New version of Orca Slicer"),
-                    false,
-                    wxCENTER | wxICON_INFORMATION);
-
-
-                dialog.SetExtendedMessage(extmsg);*/
                 std::string skip_version_str = this->app_config->get("app", "skip_version");
                 bool skip_this_version = false;
                 if (!skip_version_str.empty()) {
@@ -2643,6 +2632,7 @@ bool GUI_App::on_init_inner()
             });
             dlg.ShowModal();
         });
+        */
     }
     else {
 #ifdef __WXMSW__

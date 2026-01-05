@@ -242,23 +242,12 @@ jobs:
           path: ${{ env.BUILD_DIR }}/Wonderprint-Orca_Mac_${{ env.ver }}_signed.dmg
           if-no-files-found: warn
           
-      - name: Deploy Nightly Release (Main Branch)
-        if: ${{ inputs.sign-and-notarize && github.repository == 'ahchei08/Wonderprint' && github.ref == 'refs/heads/main' }}
-        uses: WebFreak001/deploy-nightly@v3.2.0
-        with:
-          upload_url: https://uploads.github.com/repos/ahchei08/Wonderprint/releases/271695561/assets{?name,label}
-          release_id: 271695561
-          asset_path: ${{ github.workspace }}/OrcaSlicer_Mac_universal_${{ env.ver }}_signed.dmg
-          asset_name: WonderMaker_Mac_universal_nightly.dmg
-          asset_content_type: application/octet-stream
-          max_releases: 1
-
       - name: Deploy Profile Validator Nightly
-        if: ${{ inputs.sign-and-notarize }}
+        if: ${{ inputs.sign-and-notarize || !inputs.create-dmg-only }}
         uses: WebFreak001/deploy-nightly@v3.2.0
         with:
-          upload_url: https://uploads.github.com/repos/ahchei08/Wonderprint/releases/271695561/assets{?name,label}
-          release_id: 271695561
+          upload_url: https://uploads.github.com/repos/ahchei08/Wonderprint/releases/274029253/assets{?name,label}
+          release_id: 274029253
           asset_path: ${{ env.BUILD_DIR }}/Wonderprint-Orca_Mac_${{ env.ver }}_signed.dmg
           asset_name: Wonderprint-Orca_profile_validator_Mac_nightly.dmg
           asset_content_type: application/octet-stream
