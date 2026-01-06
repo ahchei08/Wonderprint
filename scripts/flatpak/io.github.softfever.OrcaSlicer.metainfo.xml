@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop">
     <id>io.github.softfever.OrcaSlicer</id>
-    <launchable type="desktop-id">io.github.softfever.OrcaSlicer.desktop</launchable>
+    <launchable type="desktop-id">io.github.softfever.Wonderprint-Orca.desktop</launchable>
     <provides>
-        <id>io.github.softfever.OrcaSlicer.desktop</id>
+        <id>io.github.softfever.Wonderprint-Orca.desktop</id>
     </provides>
-    <name>OrcaSlicer</name>
+    <name>Wonderprint-Orca</name>
     <!-- hehe hadess @ppd 
     ... seriously though, thanks -->
     <summary>Get even more perfect prints!</summary>
