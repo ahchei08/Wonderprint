@@ -164,17 +164,25 @@ jobs:
         if: github.ref != 'refs/heads/main' && inputs.os == 'macos-14'
         working-directory: ${{ github.workspace }}
         run: |
-          mkdir -p ${{ github.workspace }}/build/universal/Wonderprint-Orca_dmg
-          rm -rf ${{ github.workspace }}/build/universal/Wonderprint-Orca_dmg/*
-          cp -R ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer.app ${{ github.workspace }}/build/universal/Wonderprint-Orca_dmg/
-          ln -sfn /Applications ${{ github.workspace }}/build/universal/Wonderprint-Orca_dmg/Applications
-          hdiutil create -volname "Wonderprint-Orca" -srcfolder ${{ github.workspace }}/build/universal/Wonderprint-Orca_dmg -ov -format UDZO Wonderprint-Orca_Mac_universal_${{ env.ver }}.dmg
+          #mkdir -p ${{ github.workspace }}/build/universal/Wonderprint-Orca_dmg
+          #rm -rf ${{ github.workspace }}/build/universal/Wonderprint-Orca_dmg/*
+          #cp -R ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer.app ${{ github.workspace }}/build/universal/Wonderprint-Orca_dmg/
+          #ln -sfn /Applications ${{ github.workspace }}/build/universal/Wonderprint-Orca_dmg/Applications
+          #hdiutil create -volname "Wonderprint-Orca" -srcfolder ${{ github.workspace }}/build/universal/Wonderprint-Orca_dmg -ov -format UDZO Wonderprint-Orca_Mac_universal_${{ env.ver }}.dmg
+          
+          TARGET_APP="${{ github.workspace }}/build/universal/Wonderprint-Orca.app"
+          DMG_SRC="${{ github.workspace }}/build/universal/Wonderprint-Orca_dmg"
+          mkdir -p $DMG_SRC && rm -rf $DMG_SRC/*
+          cp -R $TARGET_APP $DMG_SRC/
+          ln -sfn /Applications $DMG_SRC/Applications
+          DMG_NAME="${{ github.workspace }}/build/universal/Wonderprint-Orca_Mac_${{ env.ver }}_test.dmg"
+          hdiutil create -volname "Wonderprint-Orca" -srcfolder $DMG_SRC -ov -format UDZO $DMG_NAME
           
           # Create separate OrcaSlicer_profile_validator DMG if the app exists
-          if [ -f "${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer_profile_validator.app/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
+          if [ -f "${{ github.workspace }}/build/universal/Wonderprint-Orca/OrcaSlicer_profile_validator.app/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
             mkdir -p ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg
             rm -rf ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/*
-            cp -R ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer_profile_validator.app ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/
+            cp -R ${{ github.workspace }}/build/universal/Wonderprint-Orca/OrcaSlicer_profile_validator.app ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/
             ln -sfn /Applications ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/Applications
             hdiutil create -volname "OrcaSlicer Profile Validator" -srcfolder ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg -ov -format UDZO OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
           fi
@@ -184,7 +192,7 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: Wonderprint-Orca_Mac_universal_${{ env.ver }}
-          path: ${{ github.workspace }}/Wonderprint-Orca_Mac_universal_${{ env.ver }}.dmg
+          path: ${{ github.workspace }}/build/universal/Wonderprint-Orca_Mac_${{ env.ver }}_test.dmg
 
       - name: Upload OrcaSlicer_profile_validator DMG mac
         if: inputs.os == 'macos-14'

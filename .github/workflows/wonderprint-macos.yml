@@ -11,9 +11,9 @@ on:
         type: boolean
         default: false
       create-dmg-only:
-        description: 'default:build and create DMG(for test) TRUE:build and create DMG(signing/notarization)'
+        description: 'true:build and create DMG(for test) false:build and create DMG(signing/notarization)'
         type: boolean
-        default: true
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.sha }}-${{ github.ref }}
