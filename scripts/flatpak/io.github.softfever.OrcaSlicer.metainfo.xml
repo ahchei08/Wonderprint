@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop">
-    <id>io.github.softfever.OrcaSlicer</id>
+    <id>io.github.softfever.Wonderprint-Orca</id>
     <launchable type="desktop-id">io.github.softfever.Wonderprint-Orca.desktop</launchable>
     <provides>
         <id>io.github.softfever.Wonderprint-Orca.desktop</id>
