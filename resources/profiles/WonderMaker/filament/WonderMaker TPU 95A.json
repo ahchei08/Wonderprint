@@ -22,7 +22,7 @@
         "230"
     ],
     "filament_multitool_ramming": [
-        "1"
+        "0"
     ],
 	
     "additional_cooling_fan_speed": [
@@ -51,7 +51,7 @@
         "225"
     ],
     "pressure_advance": [
-        "0.037"
+        "0.37"
     ],
     "slow_down_layer_time": [
         "5"
@@ -63,10 +63,6 @@
         "WonderMaker ZR 0.4 nozzle",
         "WonderMaker ZR 0.6 nozzle",
         "WonderMaker ZR 0.8 nozzle",
-        "WonderMaker ZR Ultra 0.2 nozzle",
-        "WonderMaker ZR Ultra 0.4 nozzle",
-        "WonderMaker ZR Ultra 0.6 nozzle",
-        "WonderMaker ZR Ultra 0.8 nozzle",
         "WonderMaker ZR Ultra S 0.2 nozzle",
         "WonderMaker ZR Ultra S 0.4 nozzle",
         "WonderMaker ZR Ultra S 0.6 nozzle",

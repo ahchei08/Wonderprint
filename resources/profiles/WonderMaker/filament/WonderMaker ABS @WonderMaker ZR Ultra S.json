@@ -11,8 +11,14 @@
     "activate_chamber_temp_control": [
         "1"
     ],
-    "filament_multitool_ramming": [
+	"filament_multitool_ramming": [
         "1"
+    ],
+	"filament_multitool_ramming_flow": [
+        "0.1"
+    ],
+    "filament_multitool_ramming_volume": [
+        "0.1"
     ],
     "compatible_printers": [
         "WonderMaker ZR Ultra S 0.2 nozzle",

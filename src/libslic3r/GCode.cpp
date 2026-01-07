@@ -347,7 +347,176 @@ static std::vector<Vec2d> get_path_of_change_filament(const Print& print)
         retractionBeforeWipe += retraction_length_remaining - retractionDuringWipe;
         return {retractionBeforeWipe, retractionDuringWipe};
     }
+#if 0
+    // 打印坐标范围配置（可根据实际调整）
+    const float GCODE_COORD_MIN = 0.0f;
+    const float GCODE_COORD_MAX = 300.0f;
+    const float INVALID_POS_VAL = -1000.1f;
 
+    // 手动实现2D坐标旋转（替代Eigen::Rotation2Df）
+    Vec2f rotate_2d(const Vec2f& pos, float angle_rad)
+    {
+        float cos_a = std::cos(angle_rad);
+        float sin_a = std::sin(angle_rad);
+        return Vec2f(pos.x() * cos_a - pos.y() * sin_a, pos.x() * sin_a + pos.y() * cos_a);
+    }
+
+    // 手动实现clamp（若C++版本<17，替换std::clamp）
+    template<typename T> T clamp_val(const T& val, const T& min_val, const T& max_val)
+    {
+        if (val < min_val)
+            return min_val;
+        if (val > max_val)
+            return max_val;
+        return val;
+    }
+
+    // 核心函数：移除所有指定头文件，纯标准库实现
+    std::string transform_gcode(const std::string& gcode, Vec2f pos, const Vec2f& translation, float angle)
+    {
+        Vec2f       extruder_offset(0, 0);
+        std::string gcode_out;
+        Vec2f       transformed_pos = pos;
+        Vec2f       old_pos(INVALID_POS_VAL, INVALID_POS_VAL);
+
+        // 手动按行分割GCode（替代std::istringstream）
+        size_t line_start = 0;
+        size_t line_end   = gcode.find('\n');
+        while (line_start < gcode.size()) {
+            // 提取单行（处理换行符\n或\r\n）
+            std::string line = gcode.substr(line_start, line_end - line_start);
+            if (!line.empty() && line.back() == '\r') {
+                line.pop_back(); // 移除\r符
+            }
+
+            // 处理G1指令（核心逻辑）
+            if (line.compare(0, 3, "G1 ") == 0) {
+                bool        never_skip     = false;
+                std::string never_skip_tag = WipeTower::never_skip_tag(); // 假设此函数仍可用
+                size_t      tag_pos        = line.find(never_skip_tag);
+                if (tag_pos != std::string::npos) {
+                    never_skip = true;
+                    line.erase(tag_pos, never_skip_tag.size());
+                }
+
+                // 1. 提取X/Y值（替代std::istringstream解析，改用sscanf）
+                float x_val      = pos.x();
+                float y_val      = pos.y();
+                bool  x_parse_ok = false;
+                bool  y_parse_ok = false;
+
+                // 临时缓冲区存储非X/Y的字符（替代std::ostringstream）
+                char   line_out_buf[1024] = {0};
+                size_t buf_idx            = 0;
+
+                // 手动字符级解析（替代原istringstream逐字符读取）
+                for (size_t i = 0; i < line.size() && buf_idx < 1023; ++i) {
+                    char ch = line[i];
+                    if (ch == 'X') {
+                        // 解析X后的数值
+                        i++; // 跳过X
+                        char   num_buf[64] = {0};
+                        size_t num_idx     = 0;
+                        while (i < line.size() && num_idx < 63) {
+                            char c = line[i];
+                            if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+') {
+                                num_buf[num_idx++] = c;
+                                i++;
+                            } else {
+                                break;
+                            }
+                        }
+                        i--; // 回退到非数字字符
+                        if (num_idx > 0) {
+                            x_val      = atof(num_buf);
+                            x_parse_ok = !std::isnan(x_val) && !std::isinf(x_val);
+                        }
+                    } else if (ch == 'Y') {
+                        // 解析Y后的数值（逻辑同X）
+                        i++;
+                        char   num_buf[64] = {0};
+                        size_t num_idx     = 0;
+                        while (i < line.size() && num_idx < 63) {
+                            char c = line[i];
+                            if ((c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+') {
+                                num_buf[num_idx++] = c;
+                                i++;
+                            } else {
+                                break;
+                            }
+                        }
+                        i--;
+                        if (num_idx > 0) {
+                            y_val      = atof(num_buf);
+                            y_parse_ok = !std::isnan(y_val) && !std::isinf(y_val);
+                        }
+                    } else {
+                        // 非X/Y字符直接存入缓冲区
+                        line_out_buf[buf_idx++] = ch;
+                    }
+                }
+
+                // 解析失败兜底（保留原逻辑）
+                if (!x_parse_ok || !y_parse_ok) {
+                    if (old_pos.x() != INVALID_POS_VAL && old_pos.y() != INVALID_POS_VAL) {
+                        x_val = old_pos.x();
+                        y_val = old_pos.y();
+                    } else {
+                        gcode_out += line + "\n";
+                        line_start = line_end + 1;
+                        line_end   = gcode.find('\n', line_start);
+                        continue;
+                    }
+                }
+
+                // 2. 坐标变换（旋转+平移，替代Eigen）
+                Vec2f current_pos(x_val, y_val);
+                transformed_pos = rotate_2d(current_pos, angle);
+                transformed_pos.x() += translation.x();
+                transformed_pos.y() += translation.y();
+
+                // 3. 范围校验（替代std::clamp，若C++17+可直接用std::clamp）
+                transformed_pos.x() = clamp_val(transformed_pos.x(), GCODE_COORD_MIN, GCODE_COORD_MAX);
+                transformed_pos.y() = clamp_val(transformed_pos.y(), GCODE_COORD_MIN, GCODE_COORD_MAX);
+
+                // 4. 生成新的G1指令（替代std::ostringstream格式化，改用sprintf）
+                if (transformed_pos != old_pos || never_skip) {
+                    std::string line_out(line_out_buf);
+                    // 格式化G1 + X/Y（保留3位小数，替代std::fixed/std::setprecision）
+                    char g1_buf[256] = {0};
+                    sprintf(g1_buf, "G1 ");
+                    if (transformed_pos.x() != old_pos.x() || never_skip) {
+                        float final_x = clamp_val(transformed_pos.x() - extruder_offset.x(), GCODE_COORD_MIN, GCODE_COORD_MAX);
+                        sprintf(g1_buf + strlen(g1_buf), " X%.3f", final_x);
+                    }
+                    if (transformed_pos.y() != old_pos.y() || never_skip) {
+                        float final_y = clamp_val(transformed_pos.y() - extruder_offset.y(), GCODE_COORD_MIN, GCODE_COORD_MAX);
+                        sprintf(g1_buf + strlen(g1_buf), " Y%.3f", final_y);
+                    }
+                    sprintf(g1_buf + strlen(g1_buf), " ");
+
+                    // 替换G1开头
+                    size_t g1_pos = line_out.find("G1 ");
+                    if (g1_pos != std::string::npos) {
+                        line_out.replace(g1_pos, 3, g1_buf);
+                    }
+                    line    = line_out;
+                    old_pos = transformed_pos;
+                }
+            }
+
+            // 拼接输出
+            gcode_out += line + "\n";
+
+            // 移动到下一行
+            line_start = line_end + 1;
+            line_end   = gcode.find('\n', line_start);
+        }
+
+        return gcode_out;
+    }
+    //ahchei
+#else
     std::string transform_gcode(const std::string &gcode, Vec2f pos, const Vec2f &translation, float angle)
     {
         Vec2f              extruder_offset(0, 0);
@@ -397,7 +566,7 @@ static std::vector<Vec2d> get_path_of_change_filament(const Print& print)
         }
         return gcode_out;
     }
-
+    #endif
     float get_wipe_avoid_pos_x(const Vec2f &wt_min, const Vec2f &wt_max, float offset)
     {
         float left = 100, right = 250;
@@ -1363,7 +1532,7 @@ static std::vector<Vec2d> get_path_of_change_filament(const Print& print)
 
         return gcode;
     }
-
+    
     bool WipeTowerIntegration::is_empty_wipe_tower_gcode(GCode &gcodegen, int extruder_id, bool finish_layer)
     {
         assert(m_layer_idx >= 0);
@@ -5259,7 +5428,7 @@ void GCode::append_full_config(const Print &print, std::string &str)
                                [temp_cfg_flush_multiplier_idx](double inputx) { return inputx * temp_cfg_flush_multiplier_idx; });
             }
             cfg.option<ConfigOptionFloats>("flush_volumes_matrix")->values = temp_flush_volumes_matrix;
-        } else if (filament_count_tmp == 1) {
+        } else if (filament_count_tmp == 1 || heads_count_tmp > 2) {
         } // Not applicable to flush matrix situations
         else { // flush_volumes_matrix value count error?
             throw Slic3r::SlicingError(_(L("Flush volumes matrix do not match to the correct size!")));
