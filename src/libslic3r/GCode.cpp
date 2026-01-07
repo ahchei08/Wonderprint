@@ -1415,7 +1415,10 @@ static std::vector<Vec2d> get_path_of_change_filament(const Print& print)
                 }
 
                 transformed_pos = trans_pos(pos);
-
+                if (transformed_pos.x() > 350 && transformed_pos.y() > 350) {
+                    line = ";Caught a bug and fixed it by ahchei";
+                    transformed_pos = old_pos;
+                }//ahchei
                 if (transformed_pos != old_pos || never_skip) {
                     line = line_out.str();
                     std::ostringstream oss;
