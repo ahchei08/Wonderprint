@@ -170,7 +170,7 @@ jobs:
           #ln -sfn /Applications ${{ github.workspace }}/build/universal/Wonderprint-Orca_dmg/Applications
           #hdiutil create -volname "Wonderprint-Orca" -srcfolder ${{ github.workspace }}/build/universal/Wonderprint-Orca_dmg -ov -format UDZO Wonderprint-Orca_Mac_universal_${{ env.ver }}.dmg
           
-          TARGET_APP="${{ github.workspace }}/build/universal/Wonderprint-Orca.app"
+          TARGET_APP="${{ github.workspace }}/build/universal/Wonderprint-Orca/Wonderprint-Orca.app"
           DMG_SRC="${{ github.workspace }}/build/universal/Wonderprint-Orca_dmg"
           mkdir -p $DMG_SRC && rm -rf $DMG_SRC/*
           cp -R $TARGET_APP $DMG_SRC/

@@ -1261,8 +1261,10 @@ int GuideFrame::LoadProfileFamily(std::string strVendor, std::string strFilePath
                         .make_preferred();
             }
             OneModel["cover"]                  = cover_path.string();
-
-            OneModel["nozzle_selected"] = "";
+            //if (pm.contains("default_nozzle"))
+            //    OneModel["nozzle_selected"] = pm["default_nozzle"]; // ahchei
+            //else
+                OneModel["nozzle_selected"] = "";
 
             m_ProfileJson["model"].push_back(OneModel);
         }
