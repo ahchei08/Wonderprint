@@ -1,0 +1,41 @@
+{
+    "type": "filament",
+	"inherits": "WonderMaker PETG Basic",
+    "name": "WonderMaker PETG Basic @WonderMaker ZR Ultra",
+    "from": "system",
+    "setting_id": "GFG00_02",
+    "instantiation": "true",
+	"close_fan_the_first_x_layers": [
+        "1"
+    ],
+    "filament_extruder_variant": [
+        "Direct Drive Standard"
+    ],
+    "filament_flow_ratio": [
+        "0.94"
+    ],
+    "filament_retraction_length": [
+        "nil"
+    ],
+    "nozzle_temperature": [
+        "240"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "245"
+    ],
+	"filament_multitool_ramming": [
+        "1"
+    ],
+	"filament_multitool_ramming_flow": [
+        "0.1"
+    ],
+    "filament_multitool_ramming_volume": [
+        "0.1"
+    ],
+	"compatible_printers": [
+        "WonderMaker ZR Ultra 0.2 nozzle",
+        "WonderMaker ZR Ultra 0.4 nozzle",
+        "WonderMaker ZR Ultra 0.6 nozzle",
+        "WonderMaker ZR Ultra 0.8 nozzle"
+    ]
+}

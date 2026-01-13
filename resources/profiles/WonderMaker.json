@@ -373,9 +373,17 @@
             "name": "WonderMaker PETG Basic",
             "sub_path": "filament/WonderMaker PETG Basic.json"
         },
+		{
+            "name": "WonderMaker PETG Basic @WonderMaker ZR Ultra",
+            "sub_path": "filament/WonderMaker PETG Basic @WonderMaker ZR Ultra.json"
+        },
         {
             "name": "WonderMaker PLA Basic",
             "sub_path": "filament/WonderMaker PLA Basic.json"
+        },
+		{
+            "name": "WonderMaker PLA Basic @WonderMaker ZR Ultra",
+            "sub_path": "filament/WonderMaker PLA Basic @WonderMaker ZR Ultra.json"
         },
         {
             "name": "WonderMaker PLA Marble",
@@ -384,6 +392,10 @@
         {
             "name": "WonderMaker PLA Matte",
             "sub_path": "filament/WonderMaker PLA Matte.json"
+        },
+		{
+            "name": "WonderMaker PLA Matte @WonderMaker ZR Ultra",
+            "sub_path": "filament/WonderMaker PLA Matte @WonderMaker ZR Ultra.json"
         },
         {
             "name": "WonderMaker PLA Metal",
@@ -404,6 +416,10 @@
         {
             "name": "WonderMaker TPU 95A",
             "sub_path": "filament/WonderMaker TPU 95A.json"
+        },
+		{
+            "name": "WonderMaker TPU 95A @WonderMaker ZR Ultra",
+            "sub_path": "filament/WonderMaker TPU 95A @WonderMaker ZR Ultra.json"
         },
         {
             "name": "WonderMaker ABS @WonderMaker ZR Ultra S",

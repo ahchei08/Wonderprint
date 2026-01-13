@@ -2,7 +2,7 @@
     "type": "machine_model",
     "name": "WonderMaker ZR",
     "model_id": "WonderMaker ZR",
-    "nozzle_diameter": "0.2;0.4;0.6;0.8",
+    "nozzle_diameter": "0.4;0.2;0.6;0.8",
     "machine_tech": "FFF",
     "family": "WonderMaker",
     "bed_model": "wm_buildplate_model.stl",
