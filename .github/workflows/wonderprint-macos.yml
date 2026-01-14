@@ -1,0 +1,256 @@
+name: Build Mac
+on:
+  workflow_dispatch:
+    inputs:
+      build-deps-only:
+        description: 'Only build dependencies (bypasses caching)'
+        type: boolean
+        default: false
+      sign-and-notarize:
+        description: 'Only Sign and notarize the DMG (for release, need valid certs)'
+        type: boolean
+        default: false
+      create-dmg-only:
+        description: 'true:build and create DMG(for test) false:build and create DMG(signing/notarization)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.sha }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check_cache: # determines if there is a cache and outputs variables used in caching process
+    name: Check Cache
+    runs-on: macos-14
+    if: ${{ !inputs.sign-and-notarize }}
+    outputs:
+      cache-key: ${{ steps.set_outputs.outputs.cache-key }}
+      cache-path: ${{ steps.set_outputs.outputs.cache-path }}
+      valid-cache: ${{ steps.cache_deps.outputs.cache-hit }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          lfs: 'true'
+        
+      - name: set outputs
+        id: set_outputs
+        env:
+          dep-folder-name: ''
+        run: |
+          echo cache-key=macos-14-cache-orcaslicer_deps-build-${{ hashFiles('deps/**') }} >> $GITHUB_OUTPUT
+          echo cache-path=${{ github.workspace }}/deps/build${{ env.dep-folder-name }} >> $GITHUB_OUTPUT
+         
+      - name: load cache
+        id: cache_deps
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.set_outputs.outputs.cache-path }}
+          key: ${{ steps.set_outputs.outputs.cache-key }}
+          lookup-only: true
+
+  build_deps: # call next step
+    name: Build Deps
+    needs: [check_cache]
+    runs-on: macos-14
+    if: ${{ !cancelled() && !inputs.sign-and-notarize && (inputs.build-deps-only || needs.check_cache.outputs.valid-cache != 'true' ) }}
+    env:
+      date:
+    steps:
+      # Setup the environment
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          lfs: 'true'
+
+      - name: load cached deps
+        uses: actions/cache@v4
+        with:
+          path: ${{ needs.check_cache.outputs.cache-path }}
+          key: ${{ needs.check_cache.outputs.cache-key }}
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~3.28.0"  # use most recent 3.28.x version
+
+      - name: Get the date on Ubuntu and macOS
+        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Build on Mac universal
+        working-directory: ${{ github.workspace }}
+        run: |
+            brew install automake texinfo libtool
+            brew list
+            brew uninstall --ignore-dependencies zstd
+            ./build_release_macos.sh -dx -a universal -t 10.15 -1
+            for arch in arm64 x86_64; do
+                (cd "${{ github.workspace }}/deps/build/${arch}" && \
+                find . -mindepth 1 -maxdepth 1 ! -name 'OrcaSlicer_dep' -exec rm -rf {} +)
+            done
+            brew install zstd
+            
+  build_orca:
+    name: Build OrcaSlicer
+    needs: [check_cache, build_deps]
+    runs-on: macos-14
+    #if: ${{ !cancelled() && !inputs.build-deps-only }}
+    if: ${{ !cancelled() && (!inputs.build-deps-only || inputs.sign-and-notarize) }}
+    env:
+      date:
+      ver:
+      ver_pure:
+      ORCA_UPDATER_SIG_KEY: ${{ secrets.ORCA_UPDATER_SIG_KEY }}
+      BUILD_DIR: ${{ github.workspace }}/build/universal 
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          lfs: 'true'
+
+      - name: load cached deps
+        uses: actions/cache@v4
+        if: ${{ !inputs.sign-and-notarize }}
+        with:
+          path: ${{ needs.check_cache.outputs.cache-path }}
+          key: ${{ needs.check_cache.outputs.cache-key }}
+          fail-on-cache-miss: true
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~3.28.0"  # use most recent 3.28.x version
+          
+      - name: Get the version and date on Ubuntu and macOS
+        run: |
+          ver_pure=$(grep 'set(SoftFever_VERSION' version.inc | cut -d '"' -f2)
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            ver="PR-${{ github.event.number }}"
+            git_commit_hash="${{ github.event.pull_request.head.sha }}"
+          else
+            ver=V$ver_pure
+            git_commit_hash=""
+          fi
+          echo "ver=$ver" >> $GITHUB_ENV
+          echo "ver_pure=$ver_pure" >> $GITHUB_ENV
+          echo "date=$(date +'%Y%m%d')" >> $GITHUB_ENV
+          echo "git_commit_hash=$git_commit_hash" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Install tools mac
+        if: ${{ !inputs.sign-and-notarize }}
+        run: |
+          brew install libtool
+          brew list
+          mkdir -p ${{ github.workspace }}/deps/build
+
+      - name: Free disk space
+        if: ${{ !inputs.sign-and-notarize }}
+        run: |
+          df -hI /dev/disk3s1s1
+          sudo find /Applications -maxdepth 1 -type d -name "Xcode_*.app" ! -name "Xcode_15.4.app" -exec rm -rf {} +
+          sudo rm -rf ~/Library/Developer/CoreSimulator/Caches/*
+          df -hI /dev/disk3s1s1
+
+      - name: Build slicer mac
+        if: ${{ !inputs.sign-and-notarize }}
+        working-directory: ${{ github.workspace }}
+        run: |
+          ./build_release_macos.sh -s -n -x -a universal -t 10.15 -1
+
+      - name: Create DMG (Without Notarization)
+        if: ${{ inputs.create-dmg-only && !inputs.sign-and-notarize }}
+        run: |
+          TARGET_APP="${{ env.BUILD_DIR }}/Wonderprint-Orca/Wonderprint-Orca.app"
+          DMG_SRC="${{ env.BUILD_DIR }}/Wonderprint-Orca_dmg"
+          mkdir -p $DMG_SRC && rm -rf $DMG_SRC/*
+          cp -R $TARGET_APP $DMG_SRC/
+          ln -sfn /Applications $DMG_SRC/Applications
+          DMG_NAME="${{ env.BUILD_DIR }}/Wonderprint-Orca_Mac_${{ env.ver }}_test.dmg"
+          hdiutil create -volname "Wonderprint-Orca" -srcfolder $DMG_SRC -ov -format UDZO $DMG_NAME
+      
+      - name: Upload Test DMG (Without Notarization)
+        if: ${{ inputs.create-dmg-only && !inputs.sign-and-notarize }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: Wonderprint-Orca_Mac_${{ env.ver }}_test
+          path: ${{ env.BUILD_DIR }}/Wonderprint-Orca_Mac_${{ env.ver }}_test.dmg
+
+#      - name: Download Pre-built .app Artifact
+#        if: ${{ inputs.sign-and-notarize || !inputs.create-dmg-only }}
+#        uses: actions/download-artifact@v4
+#        with:
+#          name: OrcaSlicer_Mac_universal_${{ env.ver }}_test # 对应测试构建的 Artifact 名称
+#          path: ${{ env.BUILD_DIR }} # 下载到 BUILD_DIR 目录，与签名路径对齐
+          
+      - name: Sign & Notarize App
+        if: ${{ inputs.sign-and-notarize || !inputs.create-dmg-only }}
+        env:
+          BUILD_DIR: ${{ github.workspace }}/build/universal 
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.WONDERMAKERDIST }}
+          P12_PASSWORD: ${{ secrets.MAC_P12_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          TEAM_ID: "752C3QMAKU"
+          KEYCHAIN_PWD: ${{ secrets.MAC_P12_CERT_PASSWORD }}
+        run: |
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 -d -o $CERTIFICATE_PATH
+          echo "=== 校验 .p12 证书文件大小 ==="
+          CERT_FILE_SIZE=$(ls -l $CERTIFICATE_PATH | awk '{print $5}')
+          echo "解码后的 .p12 证书文件大小：$CERT_FILE_SIZE 字节"
+          if [ $CERT_FILE_SIZE -lt 1024 ]; then
+            echo "错误：.p12 证书文件大小过小（小于 1KB），说明 Base64 编码损坏或不完整！"
+            exit 1
+          fi
+          security create-keychain -p ${{ env.KEYCHAIN_PWD }} $KEYCHAIN_PATH
+          security set-keychain-settings -lut 3600 $KEYCHAIN_PATH
+          security unlock-keychain -p ${{ env.KEYCHAIN_PWD }} $KEYCHAIN_PATH
+          security import $CERTIFICATE_PATH -P $P12_PASSWORD -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ${{ env.KEYCHAIN_PWD }} $KEYCHAIN_PATH
+          CERTIFICATE_ID=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep "Developer ID Application" | awk '{print $2}' | head -n1)
+          echo "使用的证书ID：$CERTIFICATE_ID"
+          if [ -z "$CERTIFICATE_ID" ]; then
+            echo "错误：未找到有效的签名证书！"
+            exit 1
+          fi
+          TARGET_APP="${{ env.BUILD_DIR }}/Wonderprint-Orca/Wonderprint-Orca.app"
+          DMG_SRC="${{ env.BUILD_DIR }}/Wonderprint-Orca_dmg"
+          DMG_NAME="${{ env.BUILD_DIR }}/Wonderprint-Orca_Mac_${{ env.ver }}_signed.dmg"
+          codesign --deep --force --verbose --options runtime --timestamp \
+            --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements \
+            --sign "$CERTIFICATE_ID" $TARGET_APP
+          mkdir -p $DMG_SRC && rm -rf $DMG_SRC/*
+          cp -R $TARGET_APP $DMG_SRC/
+          ln -sfn /Applications $DMG_SRC/Applications
+          hdiutil create -volname "Wonderprint-Orca" -srcfolder $DMG_SRC -ov -format UDZO $DMG_NAME
+          codesign --deep --force --verbose --options runtime --timestamp \
+            --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements \
+            --sign "$CERTIFICATE_ID" $DMG_NAME
+          xcrun notarytool store-credentials "notarytool-profile" --apple-id "$APPLE_ID" --team-id "$TEAM_ID" --password "$APP_SPECIFIC_PASSWORD"
+          xcrun notarytool submit "$DMG_NAME" --keychain-profile "notarytool-profile" --wait
+          xcrun stapler staple "$DMG_NAME"
+
+      - name: Upload Signed Profile Validator DMG
+        if: ${{ inputs.sign-and-notarize || !inputs.create-dmg-only }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: Wonderprint-Orca_profile_validator_Mac_${{ env.ver }}_signed
+          path: ${{ env.BUILD_DIR }}/Wonderprint-Orca_Mac_${{ env.ver }}_signed.dmg
+          if-no-files-found: warn
+          
+      - name: Deploy Profile Validator Nightly
+        if: ${{ inputs.sign-and-notarize || !inputs.create-dmg-only }}
+        uses: WebFreak001/deploy-nightly@v3.2.0
+        with:
+          upload_url: https://uploads.github.com/repos/ahchei08/Wonderprint/releases/274029253/assets{?name,label}
+          release_id: 274029253
+          asset_path: ${{ env.BUILD_DIR }}/Wonderprint-Orca_Mac_${{ env.ver }}_signed.dmg
+          asset_name: Wonderprint-Orca_profile_validator_Mac_nightly.dmg
+          asset_content_type: application/octet-stream
+          max_releases: 1
+          if-no-files-found: warn
+   

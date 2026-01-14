@@ -28,9 +28,111 @@
 #include "NotificationManager.hpp"
 #include "ExtraRenderers.hpp"
 #include "format.hpp"
+#include <wx/tokenzr.h>
 
 namespace fs = boost::filesystem;
+size_t GocdeFileReadInfo(std::string& wx_gcodepath, unsigned char* buff, wxString* tmpfilament, wxString PanelName)
+{
+    size_t     len = 0;
+    wxFile     lockfile;
+    wxString   lockContent = "";
+    wxFileName path_normalizer(wx_gcodepath);
+    wxString   inputGCodePath = path_normalizer.GetFullPath();
+    wxFileName lock_file_info(inputGCodePath, "lock.txt");
+    for (int i = 0; i < 50; i++) {
+        if (lockfile.Open(lock_file_info.GetFullPath(), wxFile::read)) {
+            wxString fileContent;
+            if (lockfile.ReadAll(&fileContent)) {
+                lockContent = fileContent;
+            }
+            lockfile.Close();
+            break;
+        }
+        wxMilliSleep(10);
+        if (i == 49) {
+            // wxLogError(wxT("Failed to open lock file: %s"), inputGCodePath.c_str());
+            std::cout << "Failed to open lock file: " << inputGCodePath << endl;
+            return 0;
+        }
+    }
+    bool             fileFound = false;
+    vector<wxString> fileList;
+    // wxString         metadata_dir = inputGCodePath + wxFileName::GetPathSeparator() + "Metadata"; // 拼接 Metadata 目录路径
+    wxFileName metadata_dir(inputGCodePath, ""); // 空文件名，仅保留目录
+    metadata_dir.AppendDir("Metadata");
+    for (int i = 0; i < 32; i++) {
+        wxFileName filepath(metadata_dir.GetPath(), wxString::Format(".%s.%d.gcode", lockContent, i));
+        if (filepath.Exists()) {
+            fileFound = true;
+            fileList.push_back(filepath.GetFullPath());
+        } else if (fileFound)
+            break;
+    }
+    const size_t READ_SIZE = 32 * 1024; // 32KB
+    if (fileList.empty()) {
+        std::cout << "Failed to find G-code file: " << inputGCodePath << endl;
+        return 0;
+    } else {
+        if (PanelName.Find(" ") != wxNOT_FOUND)
+            PanelName.Replace(" ", "_");
+        wxString PanelName1 = wxString::Format(wxT("EXCLUDE_OBJECT_START NAME=%s"), PanelName);
 
+        cout << "GocdeFileReadInfo PanelName1=" << PanelName1 << endl;
+        for (auto iFile : fileList) {
+            wxFile inputFile;
+            if (!inputFile.Open(iFile)) {
+                // wxLogError(wxT("Failed to open G-code file: %s"), inputGCodePath.c_str());
+                std::cout << "Failed to open G-code file: " << iFile << endl;
+                continue;
+                // return 0;
+            }
+            std::cout << "Found G-code file: " << iFile << endl;
+            char outBuffer[READ_SIZE];
+            if (!inputFile.Read(outBuffer, READ_SIZE - 1)) {
+                inputFile.Close();
+                std::cout << "Read G-code Error: " << iFile << endl;
+                continue;
+            }
+            inputFile.Close();
+            wxString fileContent = wxString::FromUTF8(outBuffer);
+            if (fileList.size() > 1) { // find the right file
+                // fileContent.append(outBuffer, outBuffer+ READ_SIZE);
+                fileContent  = wxString::FromUTF8(outBuffer);
+                int foundPos = fileContent.Find(PanelName1);
+                cout << "GocdeFileReadInfo foundPos=" << foundPos << endl;
+                if (foundPos == wxNOT_FOUND) {
+                    continue;
+                }
+            }
+            inputGCodePath = iFile.ToUTF8();
+            wxStringTokenizer tokenizer(fileContent, wxT("\n"));
+            wxString          PngBase64 = "";
+            int               in_png    = 2;
+            int               pngPos    = 0;
+            while (tokenizer.HasMoreTokens()) {
+                wxString line = tokenizer.GetNextToken().Trim(true).Trim(false);
+
+                if (in_png == 1) {
+                    if (line.StartsWith(wxT("; thumbnail end"))) {
+                        in_png = 0;
+                    } else {
+                        PngBase64 += line.Mid(2).Trim(true).Trim(false);
+                    }
+                } else if (line.StartsWith(wxT("; thumbnail begin"))) {
+                    PngBase64 = "";
+                    in_png    = 1;
+                } else if (line.StartsWith(wxT("; filament:"))) { //"; filament used [mm]"
+                    wxString filamentInfo = line.Mid(11).Trim(true).Trim(false);
+                    *tmpfilament          = filamentInfo;
+                }
+            }
+            len = wxBase64Decode(buff, 1024 * 24, PngBase64.c_str(), PngBase64.length());
+            std::cout << "GocdeFileReadInfo len=" << len << endl;
+            return len;
+        }
+    }
+    return len;
+}
 namespace Slic3r {
 namespace GUI {
 
@@ -123,8 +225,81 @@ void PrintHostSendDialog::init()
     checkbox_text->SetFont(::Label::Body_13);
     checkbox_text->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#323A3D")));
     content_sizer->Add(checkbox_sizer);
-    content_sizer->AddSpacer(VERT_SPACING);
 
+    string gcodepath = app_config->get("app", "last_backup_path");
+    size_t   underscore_pos       = recent_path.find('_');
+    wxString panel_name_str_first = "";
+    if (underscore_pos != std::string::npos) { 
+        panel_name_str_first = recent_path.substr(0, underscore_pos);
+    } 
+    unsigned char buff[1024 * 24] = {0};
+    wxString      resultFilament  = "";
+    size_t png_size = GocdeFileReadInfo(gcodepath, buff, &resultFilament, panel_name_str_first);
+    if (png_size > 0) {
+        wxMemoryInputStream pngStream(buff, png_size); // 把解码后的PNG数据转为输入流
+        wxImage             image;
+        if (image.LoadFile(pngStream, wxBITMAP_TYPE_PNG)) // 明确指定格式为PNG
+        {
+            wxBitmap gcodebmp(image.Scale(154, 154));
+            // wxBitmap gcodebmp(wxImage(gcodepath  + "plate_1_small.png").Scale(128, 128));
+            if (gcodebmp.IsOk()) {
+                wxBitmap   gcodebmp1(158, 158, 32);
+                wxMemoryDC dc;
+                dc.SelectObject(gcodebmp1);
+                wxPen pen(wxColour(0, 152, 136), 2, wxPENSTYLE_SOLID);
+                dc.SetPen(pen);
+                dc.SetBrush(wxColour(255, 255, 255));
+                wxRect rect = wxRect(1, 1, gcodebmp1.GetWidth() - 1, gcodebmp1.GetHeight() - 1);
+                dc.DrawRectangle(rect);
+                dc.DrawBitmap(gcodebmp, 2, 2, true);
+                dc.SelectObject(wxNullBitmap);
+                this->logo->SetBitmap(gcodebmp1);
+            }
+        }
+    }
+
+
+    auto checkbox_sizer1 = new wxBoxSizer(wxHORIZONTAL);
+    CheckBox* checkbox1       = new CheckBox(this, wxID_ANY);
+    CheckBox* checkbox2       = new CheckBox(this, wxID_ANY);
+    checkbox1->SetValue(false);
+    checkbox_sizer1->Add(checkbox1, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
+    auto checkbox_text1 = new wxStaticText(this, wxID_ANY, _L("Bed leveling : Off"), wxDefaultPosition, wxDefaultSize, 0);
+    checkbox_text1->SetFont(::Label::Body_13);
+    checkbox_text1->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#323A3D")));
+    checkbox_sizer1->Add(checkbox_text1, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
+    checkbox1->Bind(wxEVT_TOGGLEBUTTON, [this, checkbox_text1](wxCommandEvent& e) {
+        if (e.IsChecked()) {
+            bed_level = true;
+            checkbox_text1->SetLabel(_L("Bed leveling : On"));
+        } else {
+            bed_level = false;
+            checkbox_text1->SetLabel(_L("Bed leveling : Off"));
+        }
+        e.Skip();
+    });
+    auto checkbox_sizer2 = new wxBoxSizer(wxHORIZONTAL);
+    checkbox2->SetValue(false);
+
+    checkbox_sizer2->Add(checkbox2, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
+    auto checkbox_text2 = new wxStaticText(this, wxID_ANY, _L("Time lapse : Off"), wxDefaultPosition, wxDefaultSize, 0);
+    checkbox_text2->SetFont(::Label::Body_13);
+    checkbox_text2->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#323A3D")));
+    checkbox_sizer2->Add(checkbox_text2, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
+    checkbox2->Bind(wxEVT_TOGGLEBUTTON, [this, checkbox_text2](wxCommandEvent& e) {
+        if (e.IsChecked()) {
+            time_lapse = true;
+            checkbox_text2->SetLabel(_L("Time lapse : On"));
+        } else {
+            time_lapse = false;
+            checkbox_text2->SetLabel(_L("Time lapse : Off"));
+        }
+        e.Skip();
+    });
+
+    content_sizer->Add(checkbox_sizer1);
+    content_sizer->Add(checkbox_sizer2);
+    content_sizer->AddSpacer(VERT_SPACING);
     if (size_t extension_start = recent_path.find_last_of('.'); extension_start != std::string::npos)
         m_valid_suffix = recent_path.substr(extension_start);
     // .gcode suffix control

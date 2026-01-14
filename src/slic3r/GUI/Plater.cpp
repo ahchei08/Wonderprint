@@ -12882,6 +12882,11 @@ void Plater::send_gcode_legacy(int plate_idx, Export3mfProgressFn proFn, bool us
         upload_job.upload_data.group       = pDlg->group();
         upload_job.upload_data.storage     = pDlg->storage();
         upload_job.upload_data.extended_info = pDlg->extendedInfo();
+        {
+            // ahchei: add bed level and time lapse info
+            upload_job.upload_data.extended_info["bed_level"]  = pDlg->bed_level ? "true" : "false";
+            upload_job.upload_data.extended_info["time_lapse"] = pDlg->time_lapse ? "true" : "false";
+        }
     }
 
     // Show "Is printer clean" dialog for PrusaConnect - Upload and print.
