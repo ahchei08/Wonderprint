@@ -29,6 +29,8 @@
 #include "ExtraRenderers.hpp"
 #include "format.hpp"
 #include <wx/tokenzr.h>
+#include <wx/mstream.h>   //wxMemoryInputStream, Linux must be explicit
+#include <wx/image.h> 
 
 namespace fs = boost::filesystem;
 size_t GocdeFileReadInfo(std::string& wx_gcodepath, unsigned char* buff, wxString* tmpfilament, wxString PanelName)

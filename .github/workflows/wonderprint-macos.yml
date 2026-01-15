@@ -246,8 +246,8 @@ jobs:
         if: ${{ inputs.sign-and-notarize || !inputs.create-dmg-only }}
         uses: WebFreak001/deploy-nightly@v3.2.0
         with:
-          upload_url: https://uploads.github.com/repos/ahchei08/Wonderprint/releases/274029253/assets{?name,label}
-          release_id: 274029253
+          upload_url: https://uploads.github.com/repos/ahchei08/Wonderprint/releases/276263845/assets{?name,label}
+          release_id: 276263845
           asset_path: ${{ env.BUILD_DIR }}/Wonderprint-Orca_Mac_${{ env.ver }}_signed.dmg
           asset_name: Wonderprint-Orca_profile_validator_Mac_nightly.dmg
           asset_content_type: application/octet-stream
