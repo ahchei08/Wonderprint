@@ -109,8 +109,8 @@ echo
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_BUILD_DIR="$PROJECT_DIR/build/$ARCH"
 DEPS_DIR="$PROJECT_DIR/deps"
-									  
-									  
+DEPS_BUILD_DIR="$DEPS_DIR/build/$ARCH"
+DEPS="$DEPS_BUILD_DIR/OrcaSlicer_deps"
 
 # For Multi-config generators like Ninja and Xcode
 export BUILD_DIR_CONFIG_SUBDIR="/$BUILD_CONFIG"
@@ -133,8 +133,8 @@ function build_deps() {
                 if [ "1." != "$BUILD_ONLY". ]; then
                     cmake "${DEPS_DIR}" \
                         -G "${DEPS_CMAKE_GENERATOR}" \
-										   
-															   
+                        -DDESTDIR="$DEPS" \
+                        -DOPENSSL_ARCH="darwin64-${_ARCH}-cc" \
                         -DCMAKE_BUILD_TYPE="$BUILD_CONFIG" \
                         -DCMAKE_OSX_ARCHITECTURES:STRING="${_ARCH}" \
                         -DCMAKE_OSX_DEPLOYMENT_TARGET="${OSX_DEPLOYMENT_TARGET}"
@@ -172,15 +172,15 @@ function build_slicer() {
             if [ "1." != "$BUILD_ONLY". ]; then
                 cmake "${PROJECT_DIR}" \
                     -G "${SLICER_CMAKE_GENERATOR}" \
-											   
+                    -DBBL_RELEASE_TO_PUBLIC=1 \
                     -DORCA_TOOLS=ON \
                     ${ORCA_UPDATER_SIG_KEY:+-DORCA_UPDATER_SIG_KEY="$ORCA_UPDATER_SIG_KEY"} \
-														   
-															  
+                    -DCMAKE_PREFIX_PATH="$DEPS/usr/local" \
+                    -DCMAKE_INSTALL_PREFIX="$PWD/OrcaSlicer" \
                     -DCMAKE_BUILD_TYPE="$BUILD_CONFIG" \
-											 
-															   
-											  
+                    -DCMAKE_MACOSX_RPATH=ON \
+                    -DCMAKE_INSTALL_RPATH="${DEPS}/usr/local" \
+                    -DCMAKE_MACOSX_BUNDLE=ON \
                     -DCMAKE_OSX_ARCHITECTURES="${_ARCH}" \
                     -DCMAKE_OSX_DEPLOYMENT_TARGET="${OSX_DEPLOYMENT_TARGET}"
             fi
@@ -203,9 +203,9 @@ function build_slicer() {
             # fully copy newly built app
             cp -LpR "../src$BUILD_DIR_CONFIG_SUBDIR/Wonderprint-Orca.app" ./Wonderprint-Orca.app
             # fix resources
-            #resources_path=$(readlink -f ./OrcaSlicer.app/Contents/Resources)
-            #rm -rf ./OrcaSlicer.app/Contents/Resources
-            #cp -LRp "$resources_path" ./OrcaSlicer.app/Contents/Resources
+            #resources_path=$(readlink ./OrcaSlicer.app/Contents/Resources)
+            #rm ./OrcaSlicer.app/Contents/Resources
+            #cp -R "$resources_path" ./OrcaSlicer.app/Contents/Resources
             # delete .DS_Store file
             find ./Wonderprint-Orca.app/ -name '.DS_Store' -delete
             
