@@ -1968,7 +1968,7 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
         file.writeln(max_height_z_tip.str());
     }
 
-    {
+    /*{
         auto used_filaments = print.get_slice_used_filaments(false);
         std::ostringstream out;
         out << "; filament: ";
@@ -1978,7 +1978,7 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
             out << used_filaments[idx] + 1;
         }
         file.writeln(out.str());
-    }
+    }*/
     file.write_format("; HEADER_BLOCK_END\n\n");
     std::vector<float> flush_matrix(cast<float>(m_config.flush_volumes_matrix.values));
     float              flush_multiplier = 1.0;
