@@ -477,11 +477,11 @@ function SelectAllFilament( nShow )
 {
 	if( nShow==0 )
 	{
-		$('#ItemBlockArea input').prop("checked",false);
+		$('#ItemBlockArea .MItem:visible input').prop("checked",false);
 	}
 	else
 	{
-		$('#ItemBlockArea input').prop("checked",true);
+		$('#ItemBlockArea .MItem:visible input').prop("checked",true);
 	}
 }
 

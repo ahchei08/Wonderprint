@@ -2555,7 +2555,7 @@ bool GUI_App::on_init_inner()
             associate_files(L"gcode");
 #endif // __WXMSW__
         preset_updater = new PresetUpdater();
-        /*//ahchei
+        //ahchei
         Bind(EVT_SLIC3R_VERSION_ONLINE, [this](const wxCommandEvent& evt) {
             if (this->plater_ != nullptr) {
                 std::string skip_version_str = this->app_config->get("app", "skip_version");
@@ -2590,7 +2590,7 @@ bool GUI_App::on_init_inner()
                     }
                 }
             }
-            });*/
+            });
         
         Bind(EVT_ENTER_FORCE_UPGRADE, [this](const wxCommandEvent& evt) {
                 wxString      version_str = wxString::FromUTF8(this->app_config->get("upgrade", "version"));

@@ -436,7 +436,7 @@ void PrintHostSendDialog::init()
         }
         //"SAVE_VARIABLE VARIABLE=box_modify_t0 VALUE=0"
         content_sizer->Add(filamentSizer);
-
+        #if 0
         auto      checkbox_sizer1 = new wxBoxSizer(wxHORIZONTAL);
         
         checkbox1->SetValue(false);
@@ -471,6 +471,10 @@ void PrintHostSendDialog::init()
 
         content_sizer->Add(checkbox_sizer1);
         content_sizer->Add(checkbox_sizer2);
+        #else
+        checkbox1->Hide();
+        checkbox2->Hide();
+        #endif
         content_sizer->AddSpacer(VERT_SPACING);
     } else {
         checkbox1->Hide();
