@@ -235,7 +235,7 @@ if [[ -n "${BUILD_ORCA}" ]] ; then
     set -x
     cmake -S . -B $BUILD_DIR "${CMAKE_C_CXX_COMPILER_CLANG[@]}" "${CMAKE_LLD_LINKER_ARGS[@]}" -G "Ninja Multi-Config" \
 	  -DSLIC3R_PCH="${SLIC3R_PRECOMPILED_HEADERS}" \
-	  -DCMAKE_PREFIX_PATH="${SCRIPT_PATH}/deps/$BUILD_DIR/destdir/usr/local" \
+	  -DCMAKE_PREFIX_PATH="${SCRIPT_PATH}/deps/$BUILD_DIR/OrcaSlicer_dep/usr/local" \
 	  -DSLIC3R_STATIC=1 \
 	  -DORCA_TOOLS=ON \
 	  "${COLORED_OUTPUT}" \
