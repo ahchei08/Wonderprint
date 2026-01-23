@@ -260,7 +260,7 @@ void PrintHostSendDialog::init()
         }
     }
 
-
+#if 0
     auto checkbox_sizer1 = new wxBoxSizer(wxHORIZONTAL);
     CheckBox* checkbox1       = new CheckBox(this, wxID_ANY);
     CheckBox* checkbox2       = new CheckBox(this, wxID_ANY);
@@ -301,6 +301,7 @@ void PrintHostSendDialog::init()
 
     content_sizer->Add(checkbox_sizer1);
     content_sizer->Add(checkbox_sizer2);
+#endif
     content_sizer->AddSpacer(VERT_SPACING);
     if (size_t extension_start = recent_path.find_last_of('.'); extension_start != std::string::npos)
         m_valid_suffix = recent_path.substr(extension_start);

@@ -29,7 +29,9 @@ function usage() {
 }
 
 SLIC3R_PRECOMPILED_HEADERS="ON"
-
+# 新增：默认构建目录（和2.3.2对齐，不影响原有逻辑）
+BUILD_DIR=build
+BUILD_CONFIG=Release
 unset name
 while getopts ":1j:bcCdhiprstulL" opt ; do
   case ${opt} in
@@ -179,39 +181,39 @@ if [[ -n "${BUILD_DEPS}" ]] ; then
     BUILD_ARGS+=(-DDEP_WX_GTK3=ON)
     if [[ -n "${CLEAN_BUILD}" ]]
     then
-        rm -fr deps/build
+        rm -fr deps/$BUILD_DIR
     fi
-    mkdir -p deps/build
+    mkdir -p deps/$BUILD_DIR
     if [[ -n "${BUILD_DEBUG}" ]] ; then
         # build deps with debug and release else cmake will not find required sources
-        mkdir -p deps/build/release
+        mkdir -p deps/$BUILD_DIR/release
 	set -x
 	cmake -S deps -B deps/build/release "${CMAKE_C_CXX_COMPILER_CLANG[@]}" "${CMAKE_LLD_LINKER_ARGS[@]}" -G Ninja \
 	      -DSLIC3R_PCH="${SLIC3R_PRECOMPILED_HEADERS}" \
-	      -DDESTDIR="${SCRIPT_PATH}/deps/build/destdir" \
+	      -DDESTDIR="${SCRIPT_PATH}/deps/$BUILD_DIR/destdir" \
 	      -DDEP_DOWNLOAD_DIR="${SCRIPT_PATH}/deps/DL_CACHE" \
 	      "${COLORED_OUTPUT}" \
 	      "${BUILD_ARGS[@]}"
 	set +x
-        cmake --build deps/build/release
+        cmake --build deps/$BUILD_DIR/release
         BUILD_ARGS+=(-DCMAKE_BUILD_TYPE=Debug)
     fi
 
     set -x
     cmake -S deps -B deps/build "${CMAKE_C_CXX_COMPILER_CLANG[@]}" "${CMAKE_LLD_LINKER_ARGS[@]}" -G Ninja \
 	  -DSLIC3R_PCH="${SLIC3R_PRECOMPILED_HEADERS}" \
-	  -DDESTDIR="${SCRIPT_PATH}/deps/build/destdir" \
+	  -DDESTDIR="${SCRIPT_PATH}/deps/$BUILD_DIR/destdir" \
 	  -DDEP_DOWNLOAD_DIR="${SCRIPT_PATH}/deps/DL_CACHE" \
 	  "${COLORED_OUTPUT}" \
 	  "${BUILD_ARGS[@]}"
     set +x
-    cmake --build deps/build
+    cmake --build deps/$BUILD_DIR
 fi
 
 if [[ -n "${BUILD_ORCA}" ]] ; then
     echo "Configuring OrcaSlicer..."
     if [[ -n "${CLEAN_BUILD}" ]] ; then
-        rm -fr build
+        rm -fr $BUILD_DIR
     fi
     read -r -a BUILD_ARGS <<< "${ORCA_EXTRA_BUILD_ARGS}"
     if [[ -n "${FOUND_GTK3_DEV}" ]] ; then
@@ -231,9 +233,9 @@ if [[ -n "${BUILD_ORCA}" ]] ; then
 
     echo "Configuring OrcaSlicer..."
     set -x
-    cmake -S . -B build "${CMAKE_C_CXX_COMPILER_CLANG[@]}" "${CMAKE_LLD_LINKER_ARGS[@]}" -G "Ninja Multi-Config" \
+    cmake -S . -B $BUILD_DIR "${CMAKE_C_CXX_COMPILER_CLANG[@]}" "${CMAKE_LLD_LINKER_ARGS[@]}" -G "Ninja Multi-Config" \
 	  -DSLIC3R_PCH="${SLIC3R_PRECOMPILED_HEADERS}" \
-	  -DCMAKE_PREFIX_PATH="${SCRIPT_PATH}/deps/build/destdir/usr/local" \
+	  -DCMAKE_PREFIX_PATH="${SCRIPT_PATH}/deps/$BUILD_DIR/destdir/usr/local" \
 	  -DSLIC3R_STATIC=1 \
 	  -DORCA_TOOLS=ON \
 	  "${COLORED_OUTPUT}" \
@@ -242,22 +244,22 @@ if [[ -n "${BUILD_ORCA}" ]] ; then
     echo "done"
     echo "Building OrcaSlicer ..."
     if [[ -n "${BUILD_DEBUG}" ]] ; then
-        cmake --build build --config Debug --target OrcaSlicer
+        cmake --build $BUILD_DIR --config Debug --target OrcaSlicer
     else
-        cmake --build build --config Release --target OrcaSlicer
+        cmake --build $BUILD_DIR --config Release --target OrcaSlicer
     fi
     echo "Building OrcaSlicer_profile_validator .."
     if [[ -n "${BUILD_DEBUG}" ]] ; then
-        cmake --build build --config Debug --target OrcaSlicer_profile_validator
+        cmake --build $BUILD_DIR --config Debug --target OrcaSlicer_profile_validator
     else
-        cmake --build build --config Release --target OrcaSlicer_profile_validator
+        cmake --build $BUILD_DIR --config Release --target OrcaSlicer_profile_validator
     fi
     ./scripts/run_gettext.sh
     echo "done"
 fi
 
 if [[ -n "${BUILD_IMAGE}" || -n "${BUILD_ORCA}" ]] ; then
-    pushd build > /dev/null
+    pushd $BUILD_DIR > /dev/null
     echo "[9/9] Generating Linux app..."
     build_linux_image="./src/build_linux_image.sh"
     if [[ -e ${build_linux_image} ]] ; then
