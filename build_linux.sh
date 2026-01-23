@@ -31,7 +31,7 @@ function usage() {
 SLIC3R_PRECOMPILED_HEADERS="ON"
 # 新增：默认构建目录（和2.3.2对齐，不影响原有逻辑）
 BUILD_DIR=build
-BUILD_CONFIG=Release
+export BUILD_CONFIG=Release
 unset name
 while getopts ":1j:bcCdhiprstulL" opt ; do
   case ${opt} in
