@@ -244,9 +244,9 @@ if [[ -n "${BUILD_ORCA}" ]] ; then
     echo "done"
     echo "Building OrcaSlicer ..."
     if [[ -n "${BUILD_DEBUG}" ]] ; then
-        cmake --build $BUILD_DIR --config Debug --target OrcaSlicer
+        cmake --build $BUILD_DIR --config Debug --target Wonderprint-Orca
     else
-        cmake --build $BUILD_DIR --config Release --target OrcaSlicer
+        cmake --build $BUILD_DIR --config Release --target Wonderprint-Orca
     fi
     echo "Building OrcaSlicer_profile_validator .."
     if [[ -n "${BUILD_DEBUG}" ]] ; then
