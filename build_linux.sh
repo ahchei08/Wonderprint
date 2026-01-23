@@ -190,7 +190,7 @@ if [[ -n "${BUILD_DEPS}" ]] ; then
 	set -x
 	cmake -S deps -B deps/build/release "${CMAKE_C_CXX_COMPILER_CLANG[@]}" "${CMAKE_LLD_LINKER_ARGS[@]}" -G Ninja \
 	      -DSLIC3R_PCH="${SLIC3R_PRECOMPILED_HEADERS}" \
-	      -DDESTDIR="${SCRIPT_PATH}/deps/$BUILD_DIR/destdir" \
+	      -DDESTDIR="${SCRIPT_PATH}/deps/$BUILD_DIR/OrcaSlicer_dep" \
 	      -DDEP_DOWNLOAD_DIR="${SCRIPT_PATH}/deps/DL_CACHE" \
 	      "${COLORED_OUTPUT}" \
 	      "${BUILD_ARGS[@]}"
@@ -202,7 +202,7 @@ if [[ -n "${BUILD_DEPS}" ]] ; then
     set -x
     cmake -S deps -B deps/build "${CMAKE_C_CXX_COMPILER_CLANG[@]}" "${CMAKE_LLD_LINKER_ARGS[@]}" -G Ninja \
 	  -DSLIC3R_PCH="${SLIC3R_PRECOMPILED_HEADERS}" \
-	  -DDESTDIR="${SCRIPT_PATH}/deps/$BUILD_DIR/destdir" \
+	  -DDESTDIR="${SCRIPT_PATH}/deps/$BUILD_DIR/OrcaSlicer_dep" \
 	  -DDEP_DOWNLOAD_DIR="${SCRIPT_PATH}/deps/DL_CACHE" \
 	  "${COLORED_OUTPUT}" \
 	  "${BUILD_ARGS[@]}"
