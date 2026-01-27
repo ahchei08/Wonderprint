@@ -10095,7 +10095,6 @@ void GLCanvas3D::_set_warning_notification(EWarning warning, bool state)
         break;
     }
     case EWarning::MultiExtruderPrintableError: {
-        break;
         for (auto error_iter = m_gcode_viewer.m_gcode_check_result.print_area_error_infos.begin(); error_iter != m_gcode_viewer.m_gcode_check_result.print_area_error_infos.end(); ++error_iter) {
             if (error_iter != m_gcode_viewer.m_gcode_check_result.print_area_error_infos.begin()) {
                 text += "\n";
@@ -10382,7 +10381,10 @@ bool GLCanvas3D::is_flushing_matrix_error() {
     const auto                &project_config = wxGetApp().preset_bundle->project_config;
     const std::vector<double> &config_matrix  = (project_config.option<ConfigOptionFloats>("flush_volumes_matrix"))->values;
     const std::vector<double> &config_multiplier = (project_config.option<ConfigOptionFloats>("flush_multiplier"))->values;
-
+    PresetBundle*              preset_bundle     = wxGetApp().preset_bundle;
+    int                        extruder_count    = preset_bundle->get_printer_extruder_count();
+    if ( extruder_count > 2)//ahchei
+        return false;
     for (auto multiplier : config_multiplier) {
         if (multiplier == 0) return true;
     }

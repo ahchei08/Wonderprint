@@ -3302,17 +3302,44 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
     int      f_num = 0; //ahchei
     wxColour m_color[4];
     std::vector<std::string> new_colors;
-#if 0
-    int      f_num   = GUI::wxGetApp().mainframe->m_browser_tab->m_statusbar->GeFilamentColor(m_color);
-#else
+    //int      f_num   = GUI::wxGetApp().mainframe->m_browser_tab->m_statusbar->GeFilamentColor(m_color);
+
     PresetBundle*      preset_bundle = wxGetApp().preset_bundle;
     DynamicPrintConfig cfg           = preset_bundle->printers.get_edited_preset().config;
     string             hostprint     = cfg.opt_string("print_host");
     char*              objects       = "{\"objects\": {"
                                        "\"neopixel T0_RGB\": null, \"neopixel T1_RGB\": null, "
                                        "\"neopixel T2_RGB\": null, \"neopixel T3_RGB\": null}}";
-    wxString           m_url         = wxString::Format("http://%s:7125/printer/objects/query", hostprint);
+    wxString           m_url         = wxString::Format("http://%s:7125/printer/objects/query", hostprint);           
     wxString           Result;
+#if 1
+    //if (cfg.opt_bool("single_extruder_multi_material")) {
+    m_url = wxString::Format("http://%s/printer/objects/query?color_feeder=slots_info", hostprint);
+    vector<std::string> slot_materiallist;
+    if (HttpJsonClient::SendGetRequest(m_url, Result, 1)) {
+        try {
+            nlohmann::json root  = nlohmann::json::parse(Result);
+            const auto&    sjson = root["result"]["status"];
+            if (sjson.contains("color_feeder")) {
+                const auto& feeder_json = sjson["color_feeder"]["slots_info"];
+                if (!feeder_json.is_null()) {
+                    for (int i = 0; i < 4; i++) {
+                        std::string key = "T" + std::to_string(i);
+                        if (feeder_json.contains(key)) {
+                            f_num++;
+                            new_colors.push_back("#" + feeder_json[key]["slot_color"].get<std::string>());
+                            if (!feeder_json[key]["slot_material"].is_null()) {
+                                slot_materiallist.push_back(feeder_json[key]["slot_material"]);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (std::exception const& e) {
+            std::cerr << "Read Json error: " << e.what() << std::endl;
+        }
+    }
+#else
     if (HttpJsonClient::SendPostRequest(m_url, objects, "application/json", Result, 1)) {
         try {
             nlohmann::json root  = nlohmann::json::parse(Result);
@@ -3340,24 +3367,51 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
     int fsize_1 = p->combos_filament.size();
     if (f_num) {
         //wxGetApp().preset_bundle->set_num_filaments(f_num, new_colors);
+        int                 itemCount = p->combos_filament[0]->GetCount();
+        vector<std::string> filament_type1;
+        //filament_type1.push_back("");
+        for (int i = 0; i < itemCount; i++) {
+            std::string   tmp       = p->combos_filament[0]->GetString(i).ToStdString();
+            filament_type1.push_back(tmp);
+            //const Preset* curPreset = wxGetApp().preset_bundle->filaments.find_preset(tmp);
+            //if (curPreset) {
+            //    filament_type1.push_back(curPreset->config.get_filament_type());
+            //}
+        }
         for (int i = 0; i < f_num; i++) {
             if (i < fsize_1) {
-                DynamicPrintConfig*  cfg    = &wxGetApp().preset_bundle->project_config;
-                ConfigOptionStrings* colors = cfg->option<ConfigOptionStrings>("filament_colour");
-                colors->values[i]           = m_color[i].GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
-
-                p->combos_filament[i]->m_clrData.SetColour(m_color[i]);
                 std::vector<std::string> color_i;
-                color_i.push_back(m_color[i].GetAsString(wxC2S_HTML_SYNTAX).ToStdString());
+                //color_i.push_back(m_color[i].GetAsString(wxC2S_HTML_SYNTAX).ToStdString());
+                color_i.push_back(new_colors[i]);
                 p->combos_filament[i]->sync_colour_config(color_i, false);
-
                 wxCommandEvent* evt = new wxCommandEvent(EVT_FILAMENT_COLOR_CHANGED);
                 evt->SetInt(i);
                 wxQueueEvent(wxGetApp().plater(), evt);
             } else {
                 if (p->combos_filament.size() >= MAXIMUM_EXTRUDER_NUMBER)
                     return;
-                add_custom_filament(m_color[i]);
+                //add_custom_filament(m_color[i]);
+                add_custom_filament(wxColour(new_colors[i]));
+            }
+            if (i < slot_materiallist.size()) {//PLA
+                //int s = p->combos_filament[i]->GetSelection();
+                int      select = p->combos_filament[i]->GetSelection();
+                /*if (slot_materiallist[i] == filament_type1[select]) {
+                    continue;
+                }*/
+                for (int j = 0; j < filament_type1.size(); j++)
+                {
+                    //if (slot_materiallist[i] == filament_type1[j]) {
+                    if (filament_type1[j].find(slot_materiallist[i]) != std::string::npos) {
+                        p->combos_filament[i]->SetSelection(j);
+                        wxCommandEvent evt(wxEVT_COMBOBOX, p->combos_filament[i]->GetId()); // 事件类型 + 控件ID
+                        evt.SetEventObject(p->combos_filament[i]);                          // 绑定事件源（关键！dynamic_cast 需要）
+                        evt.SetInt(j);                                                      // 传递选中索引（可选，evt.GetInt() 可获取）
+                        evt.SetString(p->combos_filament[i]->GetValue());
+                        p->combos_filament[i]->GetEventHandler()->ProcessEvent(evt);
+                        break;
+                    }
+                }
             }
         }
         //wxGetApp().preset_bundle->update_multi_material_filament_presets();
@@ -15990,10 +16044,12 @@ void Plater::on_config_change(const DynamicPrintConfig &config)
         }
         else if (opt_key == "printer_model") {
             p->reset_gcode_toolpaths();
+            /*
             if (old_nozzle_size != new_nozzle_size) {
                 update_flush_volume_matrix(old_nozzle_size, new_nozzle_size);
             }
 
+            */ //ahchei
             // update to force bed selection(for texturing)
             bed_shape_changed = true;
             update_scheduled = true;

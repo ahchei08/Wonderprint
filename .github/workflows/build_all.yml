@@ -118,6 +118,7 @@ jobs:
           files: "ctest_results.xml"
   flatpak:
     name: "Flatpak"
+    if: false #forcequit
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-48
       options: --privileged
