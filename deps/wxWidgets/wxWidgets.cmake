@@ -27,6 +27,7 @@ orcaslicer_add_cmake_project(
     GIT_REPOSITORY "https://github.com/SoftFever/Orca-deps-wxWidgets"
     GIT_SHALLOW ON
     DEPENDS ${PNG_PKG} ${ZLIB_PKG} ${EXPAT_PKG} ${JPEG_PKG}
+    PATCH_COMMAND ${CMAKE_COMMAND} -E env perl -0pi -e "s/cmake_minimum_required\\(VERSION 2\\.8\\.12\\)/cmake_minimum_required(VERSION 3.5)/g" build/cmake/modules/cotire_test/CMakeLists.txt build/cmake/modules/cotire.cmake
     CMAKE_ARGS
         -DwxBUILD_PRECOMP=ON
         ${_wx_toolkit}

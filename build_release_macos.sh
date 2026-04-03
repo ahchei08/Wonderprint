@@ -93,6 +93,23 @@ echo " - CMAKE_GENERATOR: $SLICER_CMAKE_GENERATOR for Slicer, $DEPS_CMAKE_GENERA
 echo " - OSX_DEPLOYMENT_TARGET: $OSX_DEPLOYMENT_TARGET"
 echo
 
+function require_command() {
+    local cmd="$1"
+    local help_text="$2"
+
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "Missing required command: $cmd"
+        if [ -n "$help_text" ]; then
+            echo "$help_text"
+        fi
+        exit 1
+    fi
+}
+
+if [[ "$SLICER_CMAKE_GENERATOR" == Ninja* ]] || [[ "$DEPS_CMAKE_GENERATOR" == Ninja* ]]; then
+    require_command "ninja" "Install it with Homebrew: brew install ninja, or rerun without -x to use the default generator."
+fi
+
 # if which -s brew; then
 # 	brew --prefix libiconv
 # 	brew --prefix zstd

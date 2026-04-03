@@ -111,8 +111,8 @@ winget install --id=SoftFever.OrcaSlicer -e
 
 ## Mac
 
-1. Download the DMG for your computer: `arm64` version for Apple Silicon and `x86_64` for Intel CPU.
-2. Drag OrcaSlicer.app to Application folder.
+1. Download the macOS DMG. Wonderprint mac builds are intended to be universal, so the same DMG should work on both Apple Silicon and Intel Macs.
+2. Drag Wonderprint-Orca.app to Application folder.
 3. *If you want to run a build from a PR, you also need to follow the instructions below:*
 
     <details>
@@ -126,7 +126,7 @@ winget install --id=SoftFever.OrcaSlicer -e
       Execute this command in terminal:
 
       ```shell
-      xattr -dr com.apple.quarantine /Applications/OrcaSlicer.app
+      xattr -dr com.apple.quarantine /Applications/Wonderprint-Orca.app
       ```
 
     - Option 3:
@@ -146,6 +146,8 @@ winget install --id=SoftFever.OrcaSlicer -e
 All updated build instructions for Windows, macOS, and Linux are now available on the official [OrcaSlicer Wiki - How to build](https://github.com/SoftFever/OrcaSlicer/wiki/How-to-build) page.
 
 Please refer to the wiki to ensure you're following the latest and most accurate steps for your platform.
+
+For the Wonderprint-specific macOS artifact and release flow used on the stable `wonder2_3_1` line, see [doc/developer-reference/Wonderprint-macos-build-release.md](doc/developer-reference/Wonderprint-macos-build-release.md).
 
 # Klipper Note
 

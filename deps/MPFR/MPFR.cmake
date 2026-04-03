@@ -30,9 +30,9 @@ else ()
         DOWNLOAD_DIR ${DEP_DOWNLOAD_DIR}/MPFR
         BUILD_IN_SOURCE ON
         CONFIGURE_COMMAND autoreconf -f -i && 
-                          env "CFLAGS=${_gmp_ccflags}" "CXXFLAGS=${_gmp_ccflags}" ./configure ${_cross_compile_arg} --prefix=${DESTDIR} --enable-shared=no --enable-static=yes --with-gmp=${DESTDIR} ${_gmp_build_tgt}
-        BUILD_COMMAND make -j
-        INSTALL_COMMAND make install
+                          env "MAKEINFO=true" "CFLAGS=${_gmp_ccflags}" "CXXFLAGS=${_gmp_ccflags}" ./configure ${_cross_compile_arg} --prefix=${DESTDIR} --enable-shared=no --enable-static=yes --with-gmp=${DESTDIR} ${_gmp_build_tgt}
+        BUILD_COMMAND env "MAKEINFO=true" make -j
+        INSTALL_COMMAND env "MAKEINFO=true" make install
         DEPENDS dep_GMP
     )
 endif ()
